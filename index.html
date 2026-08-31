@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, viewport-fit=cover" />
+<title>Kassenapp · Kuckucks-Bähnel</title>
+<link rel="icon" type="image/png" href="assets/logo.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Special+Elite&family=IBM+Plex+Mono:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- ===================== SETUP / START-SCREEN ===================== -->
+<div id="setup" class="setup">
+  <div class="setup-card">
+    <img class="setup-logo" src="assets/logo.png" alt="Kuckucks-Bähnel Logo" onerror="this.style.display='none'">
+    <h1>Kassenapp</h1>
+    <p class="setup-sub">Kuckucks-Bähnel</p>
+
+    <div class="field">
+      <label for="fahrtag">Fahrtag</label>
+      <input type="date" id="fahrtag" required>
+    </div>
+
+    <div class="field">
+      <label>Standort</label>
+      <div class="toggle-group" id="standortGroup">
+        <button type="button" class="toggle-btn" data-standort="neustadt">Neustadt</button>
+        <button type="button" class="toggle-btn" data-standort="lambrecht">Lambrecht</button>
+      </div>
+    </div>
+
+    <div class="field">
+      <label for="kasseInput">Dein Name / deine Kasse <span class="opt">(optional)</span></label>
+      <input type="text" id="kasseInput" placeholder="z. B. Schalter 1" maxlength="24" autocomplete="off">
+    </div>
+
+    <button id="startBtn" class="btn btn-brass btn-block">Kasse öffnen</button>
+    <p id="setupInfo" class="setup-info"></p>
+    <p id="setupError" class="setup-error"></p>
+  </div>
+</div>
+
+<!-- ===================== HAUPT-APP ===================== -->
+<div id="app" class="app hidden">
+
+  <header class="topbar">
+    <div class="brand">
+      <img class="brand-emblem" src="assets/logo.png" alt="Kuckucks-Bähnel" onerror="this.style.display='none'">
+      <div>
+        <h1>Kassenapp</h1>
+        <span class="brand-sub">Kuckucks-Bähnel</span>
+      </div>
+    </div>
+
+    <div class="topbar-meta">
+      <div class="meta-block">
+        <span class="meta-label">Fahrtag</span>
+        <span id="fahrtagLabel" class="meta-value">–</span>
+      </div>
+      <div class="meta-block">
+        <span class="meta-label">Standort</span>
+        <span id="standortLabel" class="meta-value">–</span>
+      </div>
+      <div class="meta-block">
+        <span class="meta-label">Kasse</span>
+        <span id="kasseLabel" class="meta-value">–</span>
+      </div>
+      <button id="changeSession" class="link-btn">Kasse wechseln</button>
+    </div>
+
+    <span id="connStatus" class="conn-status conn-connecting">verbinde…</span>
+  </header>
+
+  <nav class="tabbar" id="tabbar" aria-label="Bereiche">
+    <button class="tab-btn active" data-tab="rueckgeld">Rückgeld</button>
+    <button class="tab-btn" data-tab="kassenbuch">Kassenbuch</button>
+    <button class="tab-btn" data-tab="bericht">Verkaufsbericht</button>
+    <button class="tab-btn" data-tab="preise">Preise</button>
+  </nav>
+
+  <main class="main">
+
+    <!-- ================= TAB: RÜCKGELD ================= -->
+    <section class="tab-panel active" id="tab-rueckgeld">
+      <div class="rg-grid">
+
+        <div class="panel rg-panel">
+          <div class="panel-head"><h2>Rückgeld berechnen</h2></div>
+
+          <div class="rg-field">
+            <label>Preis</label>
+            <button class="rg-amount-btn" id="rgPreisBtn">0,00&nbsp;€</button>
+          </div>
+
+          <div class="rg-field">
+            <label>Gegeben</label>
+            <button class="rg-amount-btn" id="rgGegebenBtn">0,00&nbsp;€</button>
+            <div class="chip-row" id="rgSchnellwahl">
+              <button type="button" class="chip" data-val="5">5&nbsp;€</button>
+              <button type="button" class="chip" data-val="10">10&nbsp;€</button>
+              <button type="button" class="chip" data-val="20">20&nbsp;€</button>
+              <button type="button" class="chip" data-val="50">50&nbsp;€</button>
+              <button type="button" class="chip" data-val="100">100&nbsp;€</button>
+              <button type="button" class="chip chip-passend" data-val="passend">passend</button>
+            </div>
+          </div>
+
+          <div class="rg-result" id="rgResult">
+            <span class="rg-result-label" id="rgResultLabel">Rückgeld</span>
+            <span class="rg-result-value" id="rgResultValue">0,00&nbsp;€</span>
+          </div>
+
+          <div class="rg-actions">
+            <button class="btn btn-ghost" id="rgReset">Zurücksetzen</button>
+            <button class="btn btn-brass" id="rgVerbuchen">Als Einnahme im Kassenbuch verbuchen</button>
+          </div>
+          <p class="rg-hint" id="rgVerbuchenHint"></p>
+        </div>
+
+        <div class="panel rg-panel">
+          <div class="panel-head"><h2>Stückelung Rückgeld</h2></div>
+          <ul class="stueckelung-list" id="stueckelungList">
+            <li class="activity-empty">Preis und gegebenen Betrag eingeben.</li>
+          </ul>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ================= TAB: KASSENBUCH ================= -->
+    <section class="tab-panel" id="tab-kassenbuch">
+      <div class="kb-grid">
+
+        <div class="panel">
+          <div class="panel-head">
+            <h2>Kassenstand</h2>
+            <span class="panel-sub">heute, diese Kasse/dieser Standort</span>
+          </div>
+
+          <div class="kb-anfangsbestand">
+            <label for="anfangsbestandInput">Anfangsbestand</label>
+            <div class="kb-anfangsbestand-row">
+              <input type="text" id="anfangsbestandInput" inputmode="decimal" placeholder="0,00">
+              <button class="btn btn-ghost btn-small" id="anfangsbestandSpeichern">Speichern</button>
+            </div>
+          </div>
+
+          <div class="kb-summary">
+            <div class="kb-summary-row">
+              <span>Anfangsbestand</span>
+              <span id="kbAnfang" class="kb-mono">0,00&nbsp;€</span>
+            </div>
+            <div class="kb-summary-row kb-plus">
+              <span>+ Einzahlungen</span>
+              <span id="kbEin" class="kb-mono">0,00&nbsp;€</span>
+            </div>
+            <div class="kb-summary-row kb-minus">
+              <span>− Auszahlungen</span>
+              <span id="kbAus" class="kb-mono">0,00&nbsp;€</span>
+            </div>
+            <div class="kb-summary-row kb-total">
+              <span>Kassenbestand (Soll)</span>
+              <span id="kbTotal" class="kb-mono">0,00&nbsp;€</span>
+            </div>
+          </div>
+
+          <div class="kb-buttons">
+            <button class="btn btn-brass" id="kbEinzahlungBtn">+ Einzahlung</button>
+            <button class="btn btn-danger-outline" id="kbAuszahlungBtn">− Auszahlung</button>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head">
+            <h2>Buchungen</h2>
+            <span class="panel-sub">alle Kassen, heute</span>
+          </div>
+          <ul class="activity-list" id="kbList">
+            <li class="activity-empty">Noch keine Buchungen heute.</li>
+          </ul>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ================= TAB: VERKAUFSBERICHT ================= -->
+    <section class="tab-panel" id="tab-bericht">
+      <div class="panel">
+        <div class="panel-head">
+          <h2>Verkaufsbericht</h2>
+          <span class="panel-sub" id="berichtQuelle">–</span>
+        </div>
+
+        <table class="bericht-table">
+          <thead>
+            <tr><th>Kategorie</th><th>Anzahl</th><th>Preis</th><th>Umsatz</th></tr>
+          </thead>
+          <tbody id="berichtBody">
+            <!-- per JS befüllt -->
+          </tbody>
+          <tfoot>
+            <tr class="bericht-total-row">
+              <td colspan="3">Gesamt</td>
+              <td id="berichtGesamt" class="kb-mono">0,00&nbsp;€</td>
+            </tr>
+          </tfoot>
+        </table>
+
+        <div class="bericht-vergleich">
+          <div class="field">
+            <label for="berichtKassenbestand">Gezählter Kassenbestand (Ist) <span class="opt">(optional)</span></label>
+            <input type="text" id="berichtKassenbestand" inputmode="decimal" placeholder="0,00">
+          </div>
+          <div class="bericht-diff-row" id="berichtDiffRow">
+            <span>Differenz zum berechneten Umsatz</span>
+            <span id="berichtDiff" class="kb-mono">–</span>
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="berichtBemerkung">Bemerkung <span class="opt">(optional)</span></label>
+          <input type="text" id="berichtBemerkung" placeholder="z. B. Besonderheiten des Tages" maxlength="140">
+        </div>
+
+        <div class="bericht-actions">
+          <button class="btn btn-ghost" id="berichtZuruecksetzen">Werte aus Zähldaten neu laden</button>
+          <button class="btn btn-brass" id="berichtSpeichern">Bericht speichern</button>
+          <button class="link-btn" id="berichtCsv">als Text kopieren</button>
+        </div>
+        <p class="rg-hint" id="berichtHinweis"></p>
+      </div>
+    </section>
+
+    <!-- ================= TAB: PREISE ================= -->
+    <section class="tab-panel" id="tab-preise">
+      <div class="panel preise-panel">
+        <div class="panel-head">
+          <h2>Ticketpreise</h2>
+          <span class="panel-sub">gelten für alle Kassen, bis geändert</span>
+        </div>
+
+        <div class="preise-grid">
+          <div class="field">
+            <label for="preisErwachsene">Erwachsene (pro Ticket)</label>
+            <input type="text" id="preisErwachsene" inputmode="decimal" placeholder="0,00">
+          </div>
+          <div class="field">
+            <label for="preisKinder">Kinder (pro Ticket)</label>
+            <input type="text" id="preisKinder" inputmode="decimal" placeholder="0,00">
+          </div>
+          <div class="field">
+            <label for="preisFamilie">Familie (pro Ticket = 4 Personen)</label>
+            <input type="text" id="preisFamilie" inputmode="decimal" placeholder="0,00">
+          </div>
+          <div class="field">
+            <label for="preisGruppe">Gruppe (pro Person)</label>
+            <input type="text" id="preisGruppe" inputmode="decimal" placeholder="0,00">
+          </div>
+        </div>
+
+        <button class="btn btn-brass" id="preiseSpeichern">Preise speichern</button>
+        <p class="rg-hint" id="preiseHinweis"></p>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<!-- Numpad (Preis / Gegeben / Ein-Auszahlung / Anfangsbestand) -->
+<div id="numpadOverlay" class="dialog-overlay hidden">
+  <div class="numpad-card">
+    <p class="numpad-title" id="numpadTitle">Betrag eingeben</p>
+    <div class="numpad-display" id="numpadDisplay">0,00&nbsp;€</div>
+    <div class="numpad-grid">
+      <button class="numpad-key" data-key="1">1</button>
+      <button class="numpad-key" data-key="2">2</button>
+      <button class="numpad-key" data-key="3">3</button>
+      <button class="numpad-key" data-key="4">4</button>
+      <button class="numpad-key" data-key="5">5</button>
+      <button class="numpad-key" data-key="6">6</button>
+      <button class="numpad-key" data-key="7">7</button>
+      <button class="numpad-key" data-key="8">8</button>
+      <button class="numpad-key" data-key="9">9</button>
+      <button class="numpad-key" data-key="00">00</button>
+      <button class="numpad-key" data-key="0">0</button>
+      <button class="numpad-key" data-key="back">⌫</button>
+    </div>
+    <input type="text" id="numpadGrund" class="numpad-grund hidden" placeholder="Grund (z. B. Wechselgeld geholt)" maxlength="60">
+    <div class="dialog-actions">
+      <button id="numpadCancel" class="btn btn-ghost">Abbrechen</button>
+      <button id="numpadOk" class="btn btn-brass">Übernehmen</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="toast"></div>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>
