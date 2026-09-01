@@ -396,7 +396,7 @@ input { font-family: var(--font-body); }
 
 .kb-anfangsbestand { margin-bottom: 16px; }
 .kb-anfangsbestand label { display: block; font-size: 0.8rem; font-weight: 600; color: var(--ink-soft); margin-bottom: 6px; }
-.kb-anfangsbestand-row { display: flex; gap: 8px; }
+.kb-anfangsbestand-row { display: flex; gap: 8px; align-items: center; }
 .kb-anfangsbestand-row input {
   flex: 1; padding: 10px 12px; border: 1px solid var(--paper-dark); border-radius: 6px;
   font-family: var(--font-mono); font-size: 1rem;

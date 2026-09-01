@@ -27,7 +27,8 @@ abschließen" wird der Verkauf gebucht:
 - der Verkauf wird (je Ticketart) für den Verkaufsbericht gespeichert,
 - **die passende Anzahl Fahrgäste wird automatisch in der Fahrgastzählapp
   mitgezählt**: Erwachsene- und Kinder-Tickets als `einzelperson`,
-  Familientickets als `familien` — vorausgesetzt, für den Fahrtag existiert
+  Familientickets als `familien` (4 Personen pro verkauftem Familienticket)
+  — vorausgesetzt, für den Fahrtag existiert
   dort bereits eine Fahrt. Ist das (noch) nicht der Fall, wird der Verkauf
   trotzdem gebucht, die App weist aber darauf hin, dass die Fahrgastzahlen
   nicht aktualisiert wurden.
@@ -46,9 +47,13 @@ Für jede Ticketart trägt man **Anfangsbestand** und **Endstand** der
 fortlaufenden Nummern auf den Fahrkarten ein (gilt gemeinsam für alle Kassen
 an diesem Fahrtag — ein Fahrkartenblock pro Ticketart). Die App berechnet
 daraus automatisch die verkaufte Anzahl (Endstand − Anfangsbestand), den
-Umsatz je Ticketart und die Gesamteinnahme. In den Feldern „Absatz durch
-Kartenzahlung" sowie „Familien-" und „Einzelperson-Gutscheine" trägt man die
-Beträge ein, die nicht bar eingenommen wurden — die App addiert sie und
+Umsatz je Ticketart und die Gesamteinnahme. Im Feld „Absatz durch
+Kartenzahlung" trägt man den Betrag ein. Bei „Familien-" und
+„Einzelperson-Gutscheinen" trägt man nur die **Anzahl** ein — ein
+Familien-Gutschein zählt fest zum Preis einer Hin- Rückfahrt Familie, ein
+Einzelperson-Gutschein zum Preis einer Hin- Rückfahrt Erwachsene (Preis
+kommt automatisch aus dem Preise-Tab, der Betrag wird direkt daneben
+angezeigt). Die App addiert Kartenzahlung und beide Gutschein-Beträge und
 zieht sie von der Gesamteinnahme ab, das Ergebnis sind die erwarteten
 **Bargeldeinnahmen**. Diese werden automatisch mit der Summe verglichen, die
 die Kassenapp selbst über „Kauf abschließen" (alle Kassen) erfasst hat, samt
@@ -172,8 +177,8 @@ berichte/{fahrtag}
     rf: { anfang:   30, ende:   33 }
   }
   kartenzahlung: 4500        (Cent)
-  gutscheinFamilie: 1500     (Cent)
-  gutscheinEinzel: 500       (Cent)
+  gutscheinFamilieAnzahl: 3  (Stück, à aktuellem Preis Hin- Rückfahrt Familie)
+  gutscheinEinzelAnzahl: 2   (Stück, à aktuellem Preis Hin- Rückfahrt Erwachsene)
   bemerkung: "..."
   aktualisiert: Timestamp
 

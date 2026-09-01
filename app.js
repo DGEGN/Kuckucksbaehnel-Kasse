@@ -173,7 +173,9 @@ const berichtBody = el("berichtBody");
 const berichtGesamt = el("berichtGesamt");
 const berichtKarte = el("berichtKarte");
 const berichtGutscheinFamilie = el("berichtGutscheinFamilie");
+const berichtGutscheinFamilieBetrag = el("berichtGutscheinFamilieBetrag");
 const berichtGutscheinEinzel = el("berichtGutscheinEinzel");
+const berichtGutscheinEinzelBetrag = el("berichtGutscheinEinzelBetrag");
 const berichtSummeEinnahme = el("berichtSummeEinnahme");
 const berichtSummeAbzug = el("berichtSummeAbzug");
 const berichtBargeld = el("berichtBargeld");
@@ -743,8 +745,8 @@ function subscribeBericht() {
     TICKET_TYPES.forEach((t) => { if (!ticketBestand[t.key]) ticketBestand[t.key] = {}; });
 
     berichtKarte.value = d.kartenzahlung != null ? (d.kartenzahlung / 100).toFixed(2).replace(".", ",") : "";
-    berichtGutscheinFamilie.value = d.gutscheinFamilie != null ? (d.gutscheinFamilie / 100).toFixed(2).replace(".", ",") : "";
-    berichtGutscheinEinzel.value = d.gutscheinEinzel != null ? (d.gutscheinEinzel / 100).toFixed(2).replace(".", ",") : "";
+    berichtGutscheinFamilie.value = d.gutscheinFamilieAnzahl != null ? d.gutscheinFamilieAnzahl : "";
+    berichtGutscheinEinzel.value = d.gutscheinEinzelAnzahl != null ? d.gutscheinEinzelAnzahl : "";
     if (d.bemerkung) berichtBemerkung.value = d.bemerkung;
 
     renderBericht();
@@ -797,7 +799,14 @@ function renderBericht() {
   berichtGesamt.textContent = euro(gesamteinnahme);
   berichtSummeEinnahme.textContent = euro(gesamteinnahme);
 
-  const abzug = toCents(berichtKarte.value) + toCents(berichtGutscheinFamilie.value) + toCents(berichtGutscheinEinzel.value);
+  const gutscheinFamilieAnzahl = Math.max(0, parseInt(berichtGutscheinFamilie.value, 10) || 0);
+  const gutscheinFamilieBetrag = gutscheinFamilieAnzahl * (preise.rf || 0);
+  const gutscheinEinzelAnzahl = Math.max(0, parseInt(berichtGutscheinEinzel.value, 10) || 0);
+  const gutscheinEinzelBetrag = gutscheinEinzelAnzahl * (preise.ra || 0);
+  berichtGutscheinFamilieBetrag.textContent = euro(gutscheinFamilieBetrag);
+  berichtGutscheinEinzelBetrag.textContent = euro(gutscheinEinzelBetrag);
+
+  const abzug = toCents(berichtKarte.value) + gutscheinFamilieBetrag + gutscheinEinzelBetrag;
   berichtSummeAbzug.textContent = euro(abzug);
   const bargeld = gesamteinnahme - abzug;
   berichtBargeld.textContent = euro(bargeld);
@@ -838,8 +847,8 @@ berichtSpeichern.addEventListener("click", async () => {
       fahrtag: session.fahrtag,
       ticketBestand,
       kartenzahlung: toCents(berichtKarte.value),
-      gutscheinFamilie: toCents(berichtGutscheinFamilie.value),
-      gutscheinEinzel: toCents(berichtGutscheinEinzel.value),
+      gutscheinFamilieAnzahl: Math.max(0, parseInt(berichtGutscheinFamilie.value, 10) || 0),
+      gutscheinEinzelAnzahl: Math.max(0, parseInt(berichtGutscheinEinzel.value, 10) || 0),
       bemerkung: berichtBemerkung.value.trim(),
       kasse: session.kasse, aktualisiert: serverTimestamp()
     }, { merge: true });
@@ -859,8 +868,8 @@ berichtCsv.addEventListener("click", async () => {
   });
   zeilen.push(`Gesamteinnahme: ${berichtGesamt.textContent}`);
   zeilen.push(`Kartenzahlung: ${berichtKarte.value || "0,00"} €`);
-  zeilen.push(`Familien-Gutscheine: ${berichtGutscheinFamilie.value || "0,00"} €`);
-  zeilen.push(`Einzelperson-Gutscheine: ${berichtGutscheinEinzel.value || "0,00"} €`);
+  zeilen.push(`Familien-Gutscheine: ${berichtGutscheinFamilie.value || "0"} Stück (${berichtGutscheinFamilieBetrag.textContent})`);
+  zeilen.push(`Einzelperson-Gutscheine: ${berichtGutscheinEinzel.value || "0"} Stück (${berichtGutscheinEinzelBetrag.textContent})`);
   zeilen.push(`Bargeldeinnahmen (erwartet): ${berichtBargeld.textContent}`);
   zeilen.push(`Verkauft laut Kassenapp: ${berichtAppUmsatz.textContent}`);
   zeilen.push(`Differenz: ${berichtDiff.textContent}`);

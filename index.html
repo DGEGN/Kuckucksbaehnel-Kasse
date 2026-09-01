@@ -255,12 +255,18 @@
             <input type="text" id="berichtKarte" inputmode="decimal" placeholder="0,00">
           </div>
           <div class="field">
-            <label for="berichtGutscheinFamilie">Familien-Gutscheine</label>
-            <input type="text" id="berichtGutscheinFamilie" inputmode="decimal" placeholder="0,00">
+            <label for="berichtGutscheinFamilie">Familien-Gutscheine (Anzahl, à Preis Hin- Rückfahrt Familie)</label>
+            <div class="kb-anfangsbestand-row">
+              <input type="text" id="berichtGutscheinFamilie" inputmode="numeric" placeholder="0">
+              <span id="berichtGutscheinFamilieBetrag" class="kb-mono">0,00&nbsp;€</span>
+            </div>
           </div>
           <div class="field">
-            <label for="berichtGutscheinEinzel">Einzelperson-Gutscheine</label>
-            <input type="text" id="berichtGutscheinEinzel" inputmode="decimal" placeholder="0,00">
+            <label for="berichtGutscheinEinzel">Einzelperson-Gutscheine (Anzahl, à Preis Hin- Rückfahrt Erwachsene)</label>
+            <div class="kb-anfangsbestand-row">
+              <input type="text" id="berichtGutscheinEinzel" inputmode="numeric" placeholder="0">
+              <span id="berichtGutscheinEinzelBetrag" class="kb-mono">0,00&nbsp;€</span>
+            </div>
           </div>
         </div>
 
