@@ -1,0 +1,255 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===========================================================
+    // Gemeinsame Hilfsfunktionen (aus der Fahrgastzählapp,
+    // unverändert – gelten jetzt auch für die Kassenapp-Collections)
+    // ===========================================================
+
+    // Ist das angemeldete Konto ein Admin? (Dokument wird ausschließlich
+    // manuell in der Firebase-Konsole angelegt, siehe README.)
+    function istAdmin() {
+      return request.auth != null
+        && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+
+    // Hat das Konto eine echte Museums-E-Mail-Adresse? (Betrachter sind i. d. R.
+    // anonym angemeldet und haben daher keine E-Mail im Auth-Token.)
+    function hatMuseumsEmail() {
+      return request.auth != null
+        && request.auth.token.email != null
+        && request.auth.token.email.lower().matches('.*@eisenbahnmuseum-neustadt\\.de$');
+    }
+
+    // Bearbeiter-Rechte gibt es nur mit Museums-E-Mail UND nachdem ein Admin
+    // das Konto im Profil (benutzer/{uid}) freigeschaltet hat.
+    function istBearbeiter() {
+      return hatMuseumsEmail()
+        && exists(/databases/$(database)/documents/benutzer/$(request.auth.uid))
+        && get(/databases/$(database)/documents/benutzer/$(request.auth.uid)).data.freigegeben == true;
+    }
+
+    // ---------------------------------------------------------
+    // Archivierung: Statt einer geplanten Aufgabe um Mitternacht (würde den
+    // kostenpflichtigen Blaze-Tarif erfordern) wird bei jedem Schreibzugriff
+    // live geprüft, ob der Fahrtag bereits vorbei ist. Rechnet in UTC mit
+    // +24h Sicherheitsversatz, damit eine Fahrt im Zweifel eher etwas länger
+    // bearbeitbar bleibt, als zu früh gesperrt zu werden.
+    // ---------------------------------------------------------
+    function istDatumArchiviert(fahrtagStr) {
+      let teile = fahrtagStr.split('-');
+      let tagesende = timestamp.date(int(teile[0]), int(teile[1]), int(teile[2])) + duration.value(24, 'h');
+      return request.time >= tagesende;
+    }
+
+    function istFahrtArchiviert(fahrtId) {
+      return istDatumArchiviert(get(/databases/$(database)/documents/fahrten/$(fahrtId)).data.fahrtag);
+    }
+
+    // Kassenapp-Collections (kassenbuch, berichte, verkaeufe) verwenden als
+    // Dokument-ID "YYYY-MM-DD_standort" statt "YYYY-MM-DD_zug" wie bei
+    // "fahrten" – das Fahrtags-Datum steht aber genauso vor dem ersten "_"
+    // und kann direkt aus der ID extrahiert werden, ohne eine zusätzliche
+    // Lookup-Abhängigkeit von der "fahrten"-Collection zu erzeugen.
+    function istKassenDatumArchiviert(docId) {
+      return istDatumArchiviert(docId.split('_')[0]);
+    }
+
+    // ---------------------------------------------------------
+    // Benutzerprofile: bei der Registrierung mit freigegeben=false angelegt,
+    // nur ein Admin darf das Feld anschließend auf true (oder zurück auf
+    // false) setzen.
+    // ---------------------------------------------------------
+    match /benutzer/{userId} {
+      allow read: if request.auth != null && (request.auth.uid == userId || istAdmin());
+
+      allow create: if request.auth != null
+        && request.auth.uid == userId
+        && request.resource.data.keys().hasAll(['email', 'freigegeben'])
+        && request.resource.data.freigegeben == false
+        && request.resource.data.email == request.auth.token.email
+        && request.resource.data.email.lower().matches('.*@eisenbahnmuseum-neustadt\\.de$');
+
+      allow update: if istAdmin()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['freigegeben', 'aktualisiert']);
+
+      allow delete: if false;
+    }
+
+    // ---------------------------------------------------------
+    // Admin-Kennzeichnung: bewusst nur manuell über die Firebase-Konsole
+    // vergeben, damit sich niemand selbst zum Admin machen kann.
+    // ---------------------------------------------------------
+    match /admins/{userId} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow write: if false;
+    }
+
+    // ---------------------------------------------------------
+    // Wagen-Katalog: von Admins im Admin-Bereich gepflegt (Name,
+    // Sitzplätze, Bild als komprimiertes Base64-Data-URI). Lesen dürfen
+    // alle angemeldeten Konten, da die Wagen-Auswahl beim Anlegen einer
+    // Fahrt angezeigt wird.
+    // ---------------------------------------------------------
+    match /wagen/{wagenId} {
+      allow read: if request.auth != null;
+
+      allow create: if istAdmin()
+        && request.resource.data.keys().hasAll(['name', 'sitzplaetze', 'bild'])
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.sitzplaetze is int
+        && request.resource.data.sitzplaetze > 0;
+
+      allow update: if istAdmin();
+      allow delete: if istAdmin();
+    }
+
+    // ---------------------------------------------------------
+    // Globale App-Einstellungen. EIN Collection für beide Apps:
+    // - Dokument "global"  -> Sitzplatz-Puffer der Fahrgastzählapp
+    // - Dokument "preise"  -> Ticketpreise der Kassenapp
+    // Beide Dokumente werden ausschließlich von Admins im Admin-Bereich
+    // gepflegt; alle angemeldeten Konten dürfen lesen.
+    // ---------------------------------------------------------
+    match /einstellungen/{einstellungId} {
+      allow read: if request.auth != null;
+
+      allow create, update: if istAdmin()
+        && (
+          (einstellungId == 'global'
+            && request.resource.data.sitzplatzReservePct is int
+            && request.resource.data.sitzplatzReservePct >= 0
+            && request.resource.data.sitzplatzReservePct <= 99)
+          || einstellungId != 'global'
+        );
+
+      allow delete: if false;
+    }
+
+    // ===========================================================
+    // Fahrgastzählapp (unverändert aus der bestehenden Datei –
+    // NICHT durch die ältere, rollenlose Kassenapp-Fassung ersetzen)
+    // ===========================================================
+
+    // Eine Fahrt = ein Zug an einem Fahrtag (Dokument-ID: "YYYY-MM-DD_zug"),
+    // gemeinsam gezählt für Neustadt UND Lambrecht (derselbe Zug, dieselben
+    // Sitzplätze). Der Standort ist stattdessen eine Eigenschaft jeder
+    // einzelnen Zählung (siehe "ereignisse" unten).
+    match /fahrten/{fahrtId} {
+      // Lesen dürfen beide Rollen (Betrachter braucht das für die Sitzplatzanzeige)
+      allow read: if request.auth != null;
+
+      allow create: if istBearbeiter()
+        && request.resource.data.keys().hasAll(
+             ['fahrtag', 'zug', 'sitzplaetze', 'einzelperson', 'familien', 'gruppen'])
+        && request.resource.data.sitzplaetze is int
+        && request.resource.data.sitzplaetze > 0
+        && request.resource.data.zug in ['d3', 'd4', 'd5', 'd6', 'sonderzug']
+        && !istDatumArchiviert(request.resource.data.fahrtag);
+
+      // Zählstände werden per increment()/updateDoc laufend aktualisiert –
+      // nicht mehr möglich, sobald der Fahrtag als archiviert gilt.
+      allow update: if istBearbeiter() && !istDatumArchiviert(resource.data.fahrtag);
+
+      // Löschen (inkl. Aktivitätsprotokoll) ebenfalls nur vor der Archivierung
+      allow delete: if istBearbeiter() && !istDatumArchiviert(resource.data.fahrtag);
+
+      // Live-Aktivitätsprotokoll je Fahrt
+      match /ereignisse/{eventId} {
+        allow read: if request.auth != null;
+
+        allow create: if istBearbeiter()
+          && !istFahrtArchiviert(fahrtId)
+          && request.resource.data.keys().hasAll(['kategorie', 'anzahl', 'kasse'])
+          && request.resource.data.kategorie in ['einzelperson', 'familien', 'gruppen', 'erwachsene', 'kinder'];
+
+        // Löschen wird für "Rückgängig" und "Zurücksetzen" benötigt
+        allow delete: if istBearbeiter() && !istFahrtArchiviert(fahrtId);
+        allow update: if false;
+      }
+
+      // Vorreservierte Gruppen (Name + Personenzahl). Werden beim Bestätigen
+      // gelöscht und gleichzeitig als normale Gruppen-Zählung verbucht.
+      match /reservierungen/{resId} {
+        allow read: if request.auth != null;
+
+        allow create: if istBearbeiter()
+          && !istFahrtArchiviert(fahrtId)
+          && request.resource.data.keys().hasAll(['name', 'anzahl'])
+          && request.resource.data.name is string
+          && request.resource.data.name.size() > 0
+          && request.resource.data.anzahl is int
+          && request.resource.data.anzahl > 0;
+
+        // Bestätigen/Entfernen läuft über Löschen (+ ggf. separate Zählung)
+        allow delete: if istBearbeiter() && !istFahrtArchiviert(fahrtId);
+        allow update: if false;
+      }
+    }
+
+    // ===========================================================
+    // Kassenapp – neue Collections, an dieselben Rollen- und
+    // Archivierungsregeln wie "fahrten" angeglichen (statt nur
+    // request.auth != null wie im ursprünglichen Kassenapp-Entwurf)
+    // ===========================================================
+
+    // Kassenbuch je Fahrtag/Standort (Dokument-ID: "YYYY-MM-DD_standort")
+    match /kassenbuch/{kassenId} {
+      allow read: if request.auth != null;
+
+      allow create, update: if istBearbeiter() && !istKassenDatumArchiviert(kassenId);
+
+      allow delete: if false;
+
+      // Einzelne Ein-/Auszahlungen, unveränderlich (kein nachträgliches Editieren)
+      match /buchungen/{buchungId} {
+        allow read: if request.auth != null;
+
+        allow create: if istBearbeiter()
+          && !istKassenDatumArchiviert(kassenId)
+          && request.resource.data.keys().hasAll(['typ', 'betrag', 'kasse'])
+          && request.resource.data.typ in ['einzahlung', 'auszahlung']
+          && request.resource.data.betrag is int
+          && request.resource.data.betrag > 0;
+
+        allow update: if false;
+
+        // Löschen wird für "Rückgängig" benötigt, wie bei den Zählereignissen
+        allow delete: if istBearbeiter() && !istKassenDatumArchiviert(kassenId);
+      }
+    }
+
+    // Verkaufsberichte je Fahrtag/Standort
+    match /berichte/{berichtId} {
+      allow read: if request.auth != null;
+
+      allow create, update: if istBearbeiter() && !istKassenDatumArchiviert(berichtId);
+
+      allow delete: if false;
+    }
+
+    // Einzelne Verkäufe (Kassenbon-Positionen) je Fahrtag/Standort,
+    // Grundlage für den automatischen Vorschlag im Verkaufsbericht
+    match /verkaeufe/{verkaufId} {
+      allow read: if request.auth != null;
+
+      match /eintraege/{eintragId} {
+        allow read: if request.auth != null;
+
+        allow create: if istBearbeiter()
+          && !istKassenDatumArchiviert(verkaufId)
+          && request.resource.data.keys().hasAll(['ticket', 'anzahl', 'summe', 'kasse'])
+          && request.resource.data.anzahl is int
+          && request.resource.data.anzahl > 0;
+
+        allow update: if false;
+
+        // Löschen wird für "Rückgängig" benötigt
+        allow delete: if istBearbeiter() && !istKassenDatumArchiviert(verkaufId);
+      }
+    }
+  }
+}
