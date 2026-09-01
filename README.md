@@ -7,15 +7,20 @@ geöffneten Kassen.
 
 ## Funktionsweise
 
-### Rückgeld
-Preis und gegebenen Betrag über die großen Beträge-Felder eingeben (öffnet
-einen Ziffernblock; die letzten beiden eingegebenen Ziffern sind automatisch
-die Cent-Stellen, wie bei einem Taschenrechner: `1250` → 12,50 €). Schnellwahl-
-Chips (5/10/20/50/100 €, „passend") für den gegebenen Betrag. Die App zeigt
-sofort das Rückgeld **und** die günstigste Stückelung (welche Scheine/Münzen
-herausgegeben werden sollten). Über „Als Einnahme im Kassenbuch verbuchen"
-wird der Verkaufspreis automatisch als Einzahlung im Kassenbuch dieser Kasse
-gebucht.
+### Verkauf
+Ticketart(en) und Anzahl auswählen (− / + oder direkt die Zahl eintippen) —
+die Summe wird automatisch aus den hinterlegten Preisen berechnet. Den vom
+Kunden gegebenen Betrag über das große Feld eingeben (öffnet einen
+Ziffernblock; Schnellwahl-Chips für 5/10/20/50/100 € oder „passend"). Die
+App zeigt sofort Rückgeld **und** die günstigste Stückelung. Mit „Kauf
+abschließen" wird der Verkauf gebucht:
+- die Summe wird als Einzahlung im Kassenbuch dieser Kasse erfasst,
+- der Verkauf wird (je Ticketart) für den Verkaufsbericht gespeichert,
+- **die passende Anzahl Fahrgäste wird automatisch in der Fahrgastzählapp
+  mitgezählt** (Erwachsene/Kinder/Familie, je nach verkaufter Ticketart) —
+  vorausgesetzt, für den Fahrtag/Standort läuft dort bereits eine Zählung.
+  Ist das (noch) nicht der Fall, wird der Verkauf trotzdem gebucht, die App
+  weist aber darauf hin, dass die Fahrgastzahlen nicht aktualisiert wurden.
 
 ### Kassenbuch
 Anfangsbestand einmal pro Fahrtag/Standort eintragen. Danach einfach
@@ -23,22 +28,23 @@ Anfangsbestand einmal pro Fahrtag/Standort eintragen. Danach einfach
 Wechselgeld geholt, Trinkgeld, Materialkauf). Die App summiert automatisch:
 **Anfangsbestand + Einzahlungen − Auszahlungen = Kassenbestand (Soll)**.
 Alle Buchungen aller Kassen desselben Fahrtags/Standorts erscheinen live in
-der gemeinsamen Liste.
+der gemeinsamen Liste — jeder abgeschlossene Verkauf erscheint hier
+automatisch als Einzahlung.
 
 ### Verkaufsbericht
-Schlägt Anzahl und Umsatz je Ticketkategorie automatisch aus den
-Zähldaten der Fahrgastzählapp vor (Anzahl × hinterlegter Preis). Jeder Wert
-lässt sich anklicken und überschreiben, z. B. wenn ein Ticket zum
-Vorzugspreis verkauft wurde. Optional lässt sich der tatsächlich gezählte
-Kassenbestand eintragen — die App zeigt die Differenz zum berechneten Umsatz.
-„Bericht speichern" sichert die Werte in Firestore, „als Text kopieren"
-erzeugt eine fertige Zusammenfassung zum Einfügen in ein Formular oder eine
-Nachricht.
+Schlägt Anzahl und Umsatz je Ticketart automatisch aus den über „Kauf
+abschließen" erfassten Verkäufen aller Kassen vor. Jeder Wert lässt sich
+anklicken und überschreiben, z. B. bei einer nachträglichen Korrektur.
+Optional lässt sich der tatsächlich gezählte Kassenbestand eintragen — die
+App zeigt die Differenz zum berechneten Umsatz. „Bericht speichern" sichert
+die Werte in Firestore, „als Text kopieren" erzeugt eine fertige
+Zusammenfassung zum Einfügen in ein Formular oder eine Nachricht.
 
 ### Preise
-Zentrale Ticketpreise (Erwachsene, Kinder, Familie pro Ticket, Gruppe pro
-Person) — gelten sofort für alle Kassen und fließen in den Verkaufsbericht
-ein. Einmal einrichten, danach nur bei Preisänderungen anpassen.
+Preise für alle sechs Ticketarten (Einfache Fahrt / Hin- Rückfahrt ×
+Erwachsene / Kind / Familie) — gelten sofort für alle Kassen und fließen in
+Verkauf und Verkaufsbericht ein. Einmal einrichten, danach nur bei
+Preisänderungen anpassen.
 
 ## 1. Mit demselben Firebase-Projekt verbinden
 
@@ -101,29 +107,49 @@ kassenbuch/{fahrtag}_{standort}
 kassenbuch/{kassenId}/buchungen/{id}
   typ: "einzahlung" | "auszahlung"
   betrag: 500                 (Cent, hier 5,00 €)
-  grund: "Verkauf (Rückgeldrechner)" | frei eingegeben
+  grund: "Verkauf: 2× Einfache Fahrt Erwachsene, 1× Hin- Rückfahrt Kind" | frei eingegeben
+  kasse: "Schalter 1"
+  zeit: Timestamp
+
+verkaeufe/{fahrtag}_{standort}/eintraege/{id}
+  ticket: "ea" | "ra" | "ek" | "rk" | "ef" | "rf"
+  anzahl: 2
+  einzelpreis: 500             (Cent, Preis zum Verkaufszeitpunkt)
+  summe: 1000                  (Cent)
   kasse: "Schalter 1"
   zeit: Timestamp
 
 berichte/{fahrtag}_{standort}
   fahrtag, standort, kasse
   werte: {
-    erwachsene: { anzahl: 42, umsatz: 21000 },
-    kinder:     { anzahl: 18, umsatz:  5400 },
-    familien:   { anzahl:  6, umsatz:  9000 },
-    gruppen:    { anzahl: 30, umsatz: 12000 }
+    ea: { anzahl: 42, umsatz: 21000 },
+    ra: { anzahl: 12, umsatz:  9600 },
+    ek: { anzahl: 18, umsatz:  5400 },
+    rk: { anzahl:  9, umsatz:  4050 },
+    ef: { anzahl:  6, umsatz:  9000 },
+    rf: { anzahl:  3, umsatz:  6000 }
   }
-  kassenbestandIst: 47500 | null
+  kassenbestandIst: 55050 | null
   bemerkung: "..."
   aktualisiert: Timestamp
 
 einstellungen/preise            (ein einzelnes globales Dokument)
-  erwachsene: 500   (Cent)
-  kinder: 300
-  familie: 1500
-  gruppe: 400
+  ea: 500   (Cent) — Einfache Fahrt Erwachsene
+  ra: 800   — Hin- Rückfahrt Erwachsene
+  ek: 300   — Einfache Fahrt Kind
+  rk: 450   — Hin- Rückfahrt Kind
+  ef: 1500  — Einfache Fahrt Familie
+  rf: 2000  — Hin- Rückfahrt Familie
   aktualisiert: Timestamp
 ```
+
+Ein abgeschlossener Verkauf schreibt außerdem in die bestehenden
+Collections der Fahrgastzählapp: `fahrten/{fahrtag}_{standort}` (Felder
+`erwachsene`/`kinder`/`familien` werden per `increment()` um die verkaufte
+Anzahl erhöht) sowie je einen Eintrag in
+`fahrten/{fahrtId}/ereignisse` (gleiche Struktur wie die manuelle Zählung,
+damit sich ein Verkauf dort wie gewohnt nachvollziehen/rückgängig machen
+lässt).
 
 Alle Beträge werden intern in **ganzen Cent** gespeichert, um
 Rundungsfehler bei Kommazahlen zu vermeiden.
@@ -139,6 +165,8 @@ python3 -m http.server 8000
 
 - Andere Standardwerte für die Schnellwahl-Chips beim Rückgeld: in
   `index.html` im Block `#rgSchnellwahl` die `data-val`-Werte ändern.
-- Weitere Ticketkategorien im Verkaufsbericht: in `app.js` das Array
-  `BERICHT_KATEGORIEN` ergänzen und in `index.html`/`firestore.rules`
-  entsprechend nachziehen.
+- Weitere oder andere Ticketarten: in `app.js` das Array `TICKET_TYPES`
+  ergänzen/ändern (Schlüssel, Bezeichnung, Zählkategorie) und in
+  `index.html` (Preise-Tab) sowie `firestore.rules` entsprechend nachziehen.
+  Der Verkaufsbericht (`BERICHT_KATEGORIEN`) übernimmt neue Ticketarten
+  automatisch aus `TICKET_TYPES`.

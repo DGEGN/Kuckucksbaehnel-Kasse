@@ -75,7 +75,7 @@
   </header>
 
   <nav class="tabbar" id="tabbar" aria-label="Bereiche">
-    <button class="tab-btn active" data-tab="rueckgeld">Rückgeld</button>
+    <button class="tab-btn active" data-tab="verkauf">Verkauf</button>
     <button class="tab-btn" data-tab="kassenbuch">Kassenbuch</button>
     <button class="tab-btn" data-tab="bericht">Verkaufsbericht</button>
     <button class="tab-btn" data-tab="preise">Preise</button>
@@ -83,17 +83,21 @@
 
   <main class="main">
 
-    <!-- ================= TAB: RÜCKGELD ================= -->
-    <section class="tab-panel active" id="tab-rueckgeld">
+    <!-- ================= TAB: VERKAUF ================= -->
+    <section class="tab-panel active" id="tab-verkauf">
       <div class="rg-grid">
 
-        <div class="panel rg-panel">
-          <div class="panel-head"><h2>Rückgeld berechnen</h2></div>
-
-          <div class="rg-field">
-            <label>Preis</label>
-            <button class="rg-amount-btn" id="rgPreisBtn">0,00&nbsp;€</button>
+        <div class="panel">
+          <div class="panel-head"><h2>Tickets auswählen</h2></div>
+          <ul class="sale-list" id="saleList"><!-- per JS befüllt --></ul>
+          <div class="sale-total-row">
+            <span>Summe</span>
+            <span id="saleTotal" class="kb-mono">0,00&nbsp;€</span>
           </div>
+        </div>
+
+        <div class="panel rg-panel">
+          <div class="panel-head"><h2>Kassenbon</h2></div>
 
           <div class="rg-field">
             <label>Gegeben</label>
@@ -113,22 +117,20 @@
             <span class="rg-result-value" id="rgResultValue">0,00&nbsp;€</span>
           </div>
 
+          <ul class="stueckelung-list" id="stueckelungList">
+            <li class="activity-empty">Tickets auswählen und Betrag eingeben.</li>
+          </ul>
+
           <div class="rg-actions">
-            <button class="btn btn-ghost" id="rgReset">Zurücksetzen</button>
-            <button class="btn btn-brass" id="rgVerbuchen">Als Einnahme im Kassenbuch verbuchen</button>
+            <button class="btn btn-ghost" id="rgReset">Verkauf zurücksetzen</button>
+            <button class="btn btn-brass" id="rgVerbuchen">Kauf abschließen</button>
           </div>
           <p class="rg-hint" id="rgVerbuchenHint"></p>
         </div>
 
-        <div class="panel rg-panel">
-          <div class="panel-head"><h2>Stückelung Rückgeld</h2></div>
-          <ul class="stueckelung-list" id="stueckelungList">
-            <li class="activity-empty">Preis und gegebenen Betrag eingeben.</li>
-          </ul>
-        </div>
-
       </div>
     </section>
+
 
     <!-- ================= TAB: KASSENBUCH ================= -->
     <section class="tab-panel" id="tab-kassenbuch">
@@ -244,20 +246,28 @@
 
         <div class="preise-grid">
           <div class="field">
-            <label for="preisErwachsene">Erwachsene (pro Ticket)</label>
-            <input type="text" id="preisErwachsene" inputmode="decimal" placeholder="0,00">
+            <label for="preisEA">Einfache Fahrt Erwachsene</label>
+            <input type="text" id="preisEA" inputmode="decimal" placeholder="0,00">
           </div>
           <div class="field">
-            <label for="preisKinder">Kinder (pro Ticket)</label>
-            <input type="text" id="preisKinder" inputmode="decimal" placeholder="0,00">
+            <label for="preisRA">Hin- Rückfahrt Erwachsene</label>
+            <input type="text" id="preisRA" inputmode="decimal" placeholder="0,00">
           </div>
           <div class="field">
-            <label for="preisFamilie">Familie (pro Ticket = 4 Personen)</label>
-            <input type="text" id="preisFamilie" inputmode="decimal" placeholder="0,00">
+            <label for="preisEK">Einfache Fahrt Kind</label>
+            <input type="text" id="preisEK" inputmode="decimal" placeholder="0,00">
           </div>
           <div class="field">
-            <label for="preisGruppe">Gruppe (pro Person)</label>
-            <input type="text" id="preisGruppe" inputmode="decimal" placeholder="0,00">
+            <label for="preisRK">Hin- Rückfahrt Kind</label>
+            <input type="text" id="preisRK" inputmode="decimal" placeholder="0,00">
+          </div>
+          <div class="field">
+            <label for="preisEF">Einfache Fahrt Familie</label>
+            <input type="text" id="preisEF" inputmode="decimal" placeholder="0,00">
+          </div>
+          <div class="field">
+            <label for="preisRF">Hin- Rückfahrt Familie</label>
+            <input type="text" id="preisRF" inputmode="decimal" placeholder="0,00">
           </div>
         </div>
 

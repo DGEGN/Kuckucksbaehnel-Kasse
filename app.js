@@ -63,6 +63,18 @@ const MUENZEN = [
   { wert: 0.01, label: "1 Cent" }
 ];
 
+// Fahrkartenarten. "kategorie" ordnet einer Ticketart die Fahrgast-Zählkategorie
+// der Fahrgastzählapp zu (erwachsene / kinder / familien), damit ein Verkauf
+// automatisch die passenden Fahrgäste mitzählt.
+const TICKET_TYPES = [
+  { key: "ea", label: "Einfache Fahrt Erwachsene", kategorie: "erwachsene" },
+  { key: "ra", label: "Hin- Rückfahrt Erwachsene", kategorie: "erwachsene" },
+  { key: "ek", label: "Einfache Fahrt Kind", kategorie: "kinder" },
+  { key: "rk", label: "Hin- Rückfahrt Kind", kategorie: "kinder" },
+  { key: "ef", label: "Einfache Fahrt Familie", kategorie: "familien" },
+  { key: "rf", label: "Hin- Rückfahrt Familie", kategorie: "familien" }
+];
+
 function todayISO() {
   const fmt = new Intl.DateTimeFormat("en-CA", {
     timeZone: "Europe/Berlin", year: "numeric", month: "2-digit", day: "2-digit"
@@ -120,8 +132,9 @@ const connStatus = el("connStatus");
 
 const tabbar = el("tabbar");
 
-// Rückgeld
-const rgPreisBtn = el("rgPreisBtn");
+// Verkauf
+const saleListEl = el("saleList");
+const saleTotalEl = el("saleTotal");
 const rgGegebenBtn = el("rgGegebenBtn");
 const rgSchnellwahl = el("rgSchnellwahl");
 const rgResult = el("rgResult");
@@ -157,10 +170,12 @@ const berichtCsv = el("berichtCsv");
 const berichtHinweis = el("berichtHinweis");
 
 // Preise
-const preisErwachsene = el("preisErwachsene");
-const preisKinder = el("preisKinder");
-const preisFamilie = el("preisFamilie");
-const preisGruppe = el("preisGruppe");
+const preisEA = el("preisEA");
+const preisRA = el("preisRA");
+const preisEK = el("preisEK");
+const preisRK = el("preisRK");
+const preisEF = el("preisEF");
+const preisRF = el("preisRF");
 const preiseSpeichern = el("preiseSpeichern");
 const preiseHinweis = el("preiseHinweis");
 
@@ -180,18 +195,18 @@ const toastEl = el("toast");
 let session = null; // {fahrtag, standort, kasse}
 let selectedStandort = null;
 let fahrtRef = null, kassenbuchRef = null, berichtRef = null;
-let unsubKassenbuch = null, unsubBuchungen = null, unsubFahrt = null, unsubBericht = null, unsubPreise = null;
+let unsubKassenbuch = null, unsubBuchungen = null, unsubFahrt = null, unsubBericht = null, unsubPreise = null, unsubVerkaeufe = null;
 
-let preise = { erwachsene: 0, kinder: 0, familie: 0, gruppe: 0 }; // in Cent
-let fahrtCounts = { erwachsene: 0, kinder: 0, familien: 0, gruppen: 0 };
-let berichtOverrides = {}; // { erwachseneAnzahl, erwachseneUmsatz, ... } jeweils in Cent/Stück, falls überschrieben
+let preise = { ea: 0, ra: 0, ek: 0, rk: 0, ef: 0, rf: 0 }; // in Cent, je Ticketart
+let verkaeufeSums = {}; // Ticketart-Schlüssel -> { anzahl, umsatz(Cent) }, aus den heutigen Verkäufen dieser Fahrt/dieses Standorts
+let berichtOverrides = {}; // { <ticketKey>: {anzahl, umsatz} }, falls im Verkaufsbericht überschrieben
 let kassenbuchAnfangCents = 0;
 let buchungenListe = [];
 
-let rgPreisCents = 0;
+let saleQty = {}; // Ticketart-Schlüssel -> Anzahl im aktuellen (noch nicht abgeschlossenen) Verkauf
 let rgGegebenCents = 0;
 
-let numpadMode = null; // 'preis' | 'gegeben' | 'einzahlung' | 'auszahlung' | 'anfangsbestand' | 'preiseinstellung'
+let numpadMode = null; // 'gegeben' | 'einzahlung' | 'auszahlung'
 let numpadValue = "";
 let numpadTargetField = null;
 
@@ -271,11 +286,13 @@ function enterApp() {
   subscribeKassenbuch();
   subscribeBuchungen();
   subscribeBericht();
-  updateStueckelung();
+  subscribeVerkaeufe();
+  renderSaleList();
+  updateRgDisplay();
 }
 
 function leaveApp() {
-  [unsubKassenbuch, unsubBuchungen, unsubFahrt, unsubBericht, unsubPreise].forEach((u) => u && u());
+  [unsubKassenbuch, unsubBuchungen, unsubFahrt, unsubBericht, unsubPreise, unsubVerkaeufe].forEach((u) => u && u());
   appScreen.classList.add("hidden");
   setupScreen.classList.remove("hidden");
   showSetupError(""); showSetupInfo("");
@@ -308,26 +325,28 @@ function subscribePreise() {
     if (snap.exists()) {
       const d = snap.data();
       preise = {
-        erwachsene: d.erwachsene || 0,
-        kinder: d.kinder || 0,
-        familie: d.familie || 0,
-        gruppe: d.gruppe || 0
+        ea: d.ea || 0, ra: d.ra || 0,
+        ek: d.ek || 0, rk: d.rk || 0,
+        ef: d.ef || 0, rf: d.rf || 0
       };
     }
-    preisErwachsene.value = (preise.erwachsene / 100).toFixed(2).replace(".", ",");
-    preisKinder.value = (preise.kinder / 100).toFixed(2).replace(".", ",");
-    preisFamilie.value = (preise.familie / 100).toFixed(2).replace(".", ",");
-    preisGruppe.value = (preise.gruppe / 100).toFixed(2).replace(".", ",");
+    preisEA.value = (preise.ea / 100).toFixed(2).replace(".", ",");
+    preisRA.value = (preise.ra / 100).toFixed(2).replace(".", ",");
+    preisEK.value = (preise.ek / 100).toFixed(2).replace(".", ",");
+    preisRK.value = (preise.rk / 100).toFixed(2).replace(".", ",");
+    preisEF.value = (preise.ef / 100).toFixed(2).replace(".", ",");
+    preisRF.value = (preise.rf / 100).toFixed(2).replace(".", ",");
+    renderSaleList();
+    updateRgDisplay();
     renderBericht();
   }, (err) => showToast("Fehler beim Laden der Preise: " + err.message));
 }
 
 preiseSpeichern.addEventListener("click", async () => {
   const neu = {
-    erwachsene: toCents(preisErwachsene.value),
-    kinder: toCents(preisKinder.value),
-    familie: toCents(preisFamilie.value),
-    gruppe: toCents(preisGruppe.value)
+    ea: toCents(preisEA.value), ra: toCents(preisRA.value),
+    ek: toCents(preisEK.value), rk: toCents(preisRK.value),
+    ef: toCents(preisEF.value), rf: toCents(preisRF.value)
   };
   try {
     await setDoc(doc(db, "einstellungen", "preise"), { ...neu, aktualisiert: serverTimestamp() }, { merge: true });
@@ -339,23 +358,68 @@ preiseSpeichern.addEventListener("click", async () => {
 });
 
 // ===========================================================
-// RÜCKGELD
+// VERKAUF (Ticketauswahl, Rückgeld, Kauf abschließen)
 // ===========================================================
+function saleTotalCents() {
+  return TICKET_TYPES.reduce((sum, t) => sum + (saleQty[t.key] || 0) * (preise[t.key] || 0), 0);
+}
+
+function renderSaleList() {
+  saleListEl.innerHTML = TICKET_TYPES.map((t) => {
+    const qty = saleQty[t.key] || 0;
+    const price = preise[t.key] || 0;
+    return `<li class="sale-row">
+      <div>
+        <span class="sale-name">${t.label}</span>
+        <span class="sale-price">${euro(price)} / Ticket</span>
+      </div>
+      <div class="sale-stepper">
+        <button type="button" class="sale-step-btn" data-action="minus" data-key="${t.key}" aria-label="weniger ${t.label}">−</button>
+        <input type="text" inputmode="numeric" class="sale-qty" data-key="${t.key}" value="${qty}">
+        <button type="button" class="sale-step-btn" data-action="plus" data-key="${t.key}" aria-label="mehr ${t.label}">+</button>
+      </div>
+      <span class="sale-subtotal">${euro(qty * price)}</span>
+    </li>`;
+  }).join("");
+
+  saleListEl.querySelectorAll(".sale-step-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const key = btn.dataset.key;
+      const delta = btn.dataset.action === "plus" ? 1 : -1;
+      saleQty[key] = Math.max(0, (saleQty[key] || 0) + delta);
+      renderSaleList();
+      updateRgDisplay();
+    });
+  });
+  saleListEl.querySelectorAll(".sale-qty").forEach((input) => {
+    input.addEventListener("change", () => {
+      const key = input.dataset.key;
+      saleQty[key] = Math.max(0, parseInt(input.value, 10) || 0);
+      renderSaleList();
+      updateRgDisplay();
+    });
+  });
+
+  saleTotalEl.textContent = euro(saleTotalCents());
+}
+
 function updateRgDisplay() {
-  rgPreisBtn.textContent = euro(rgPreisCents);
+  const total = saleTotalCents();
+  saleTotalEl.textContent = euro(total);
   rgGegebenBtn.textContent = euro(rgGegebenCents);
-  const diff = rgGegebenCents - rgPreisCents;
+  const diff = rgGegebenCents - total;
   rgResultValue.textContent = euro(Math.abs(diff));
   rgResultLabel.textContent = diff < 0 ? "Fehlbetrag – bitte mehr verlangen" : "Rückgeld";
   rgResult.classList.toggle("rg-negativ", diff < 0);
-  rgVerbuchen.disabled = !(rgPreisCents > 0 && diff >= 0);
+  rgVerbuchen.disabled = !(total > 0 && diff >= 0);
   updateStueckelung();
 }
 
 function updateStueckelung() {
-  const diff = rgGegebenCents - rgPreisCents;
-  if (rgPreisCents === 0 && rgGegebenCents === 0) {
-    stueckelungList.innerHTML = '<li class="activity-empty">Preis und gegebenen Betrag eingeben.</li>';
+  const total = saleTotalCents();
+  const diff = rgGegebenCents - total;
+  if (total === 0) {
+    stueckelungList.innerHTML = '<li class="activity-empty">Tickets auswählen und gegebenen Betrag eingeben.</li>';
     return;
   }
   if (diff <= 0) {
@@ -375,9 +439,6 @@ function updateStueckelung() {
   stueckelungList.innerHTML = zeilen.join("") || '<li class="activity-empty">Kein Rückgeld nötig.</li>';
 }
 
-rgPreisBtn.addEventListener("click", () => {
-  openNumpad("preis", "Preis eingeben", rgPreisCents);
-});
 rgGegebenBtn.addEventListener("click", () => {
   openNumpad("gegeben", "Gegebenen Betrag eingeben", rgGegebenCents);
 });
@@ -385,26 +446,63 @@ rgSchnellwahl.addEventListener("click", (e) => {
   const chip = e.target.closest(".chip");
   if (!chip) return;
   if (chip.dataset.val === "passend") {
-    rgGegebenCents = rgPreisCents;
+    rgGegebenCents = saleTotalCents();
   } else {
     rgGegebenCents = Math.round(parseFloat(chip.dataset.val) * 100);
   }
   updateRgDisplay();
 });
 rgReset.addEventListener("click", () => {
-  rgPreisCents = 0; rgGegebenCents = 0;
+  saleQty = {}; rgGegebenCents = 0;
   rgVerbuchenHint.textContent = "";
+  renderSaleList();
   updateRgDisplay();
 });
+
 rgVerbuchen.addEventListener("click", async () => {
-  if (!(rgPreisCents > 0 && rgGegebenCents >= rgPreisCents)) return;
+  const total = saleTotalCents();
+  if (!(total > 0 && rgGegebenCents >= total)) return;
+  const posten = TICKET_TYPES.filter((t) => (saleQty[t.key] || 0) > 0).map((t) => ({ ...t, anzahl: saleQty[t.key] }));
+  if (!posten.length) return;
+
+  rgVerbuchen.disabled = true;
   try {
-    await bucheKassenbuch("einzahlung", rgPreisCents, "Verkauf (Rückgeldrechner)");
-    rgVerbuchenHint.textContent = `${euro(rgPreisCents)} als Einnahme im Kassenbuch verbucht.`;
-    rgPreisCents = 0; rgGegebenCents = 0;
+    const grund = "Verkauf: " + posten.map((p) => `${p.anzahl}× ${p.label}`).join(", ");
+    await bucheKassenbuch("einzahlung", total, grund);
+
+    const eintraegeRef = collection(db, "verkaeufe", `${session.fahrtag}_${session.standort}`, "eintraege");
+    for (const p of posten) {
+      await addDoc(eintraegeRef, {
+        ticket: p.key, anzahl: p.anzahl, einzelpreis: preise[p.key] || 0,
+        summe: p.anzahl * (preise[p.key] || 0), kasse: session.kasse, zeit: serverTimestamp()
+      });
+    }
+
+    // Fahrgäste automatisch in der Fahrgastzählapp mitzählen
+    const kategorieSummen = {};
+    posten.forEach((p) => { kategorieSummen[p.kategorie] = (kategorieSummen[p.kategorie] || 0) + p.anzahl; });
+
+    const fahrtSnap = await getDoc(fahrtRef);
+    const rueckgeld = Math.max(0, rgGegebenCents - total);
+    if (fahrtSnap.exists()) {
+      const updates = {};
+      Object.entries(kategorieSummen).forEach(([kat, anz]) => { updates[kat] = increment(anz); });
+      await updateDoc(fahrtRef, updates);
+      for (const [kat, anz] of Object.entries(kategorieSummen)) {
+        await addDoc(collection(fahrtRef, "ereignisse"), { kategorie: kat, anzahl: anz, kasse: session.kasse, zeit: serverTimestamp() });
+      }
+      rgVerbuchenHint.textContent = `${euro(total)} erhalten, ${euro(rueckgeld)} Rückgeld. Fahrgäste wurden automatisch gezählt.`;
+    } else {
+      rgVerbuchenHint.textContent = `${euro(total)} erhalten, ${euro(rueckgeld)} Rückgeld. Achtung: Für diesen Fahrtag/Standort läuft noch keine Zählung in der Fahrgastzählapp – Fahrgastzahlen wurden nicht aktualisiert.`;
+    }
+
+    saleQty = {}; rgGegebenCents = 0;
+    renderSaleList();
     updateRgDisplay();
   } catch (err) {
     rgVerbuchenHint.textContent = "Fehler: " + err.message;
+  } finally {
+    rgVerbuchen.disabled = false;
   }
 });
 
@@ -414,18 +512,6 @@ rgVerbuchen.addEventListener("click", async () => {
 function subscribeFahrt() {
   unsubFahrt = onSnapshot(fahrtRef, (snap) => {
     setConnStatus(snap.metadata.fromCache ? "offline" : "online");
-    if (snap.exists()) {
-      const d = snap.data();
-      fahrtCounts = {
-        erwachsene: d.erwachsene || 0,
-        kinder: d.kinder || 0,
-        familien: d.familien || 0,
-        gruppen: d.gruppen || 0
-      };
-    } else {
-      fahrtCounts = { erwachsene: 0, kinder: 0, familien: 0, gruppen: 0 };
-    }
-    renderBericht();
   }, (err) => {
     setConnStatus("offline");
   });
@@ -523,25 +609,51 @@ function subscribeBericht() {
       if (d.bemerkung) berichtBemerkung.value = d.bemerkung;
       berichtQuelle.textContent = "gespeicherter Bericht, zuletzt aktualisiert";
     } else {
-      berichtQuelle.textContent = "Vorschlag aus Zähldaten – noch nicht gespeichert";
+      berichtQuelle.textContent = "Vorschlag aus den erfassten Verkäufen – noch nicht gespeichert";
     }
     renderBericht();
   }, (err) => showToast("Fehler beim Laden des Berichts: " + err.message));
 }
 
-const BERICHT_KATEGORIEN = [
-  { key: "erwachsene", label: "Erwachsene", zaehl: () => fahrtCounts.erwachsene, preis: () => preise.erwachsene },
-  { key: "kinder", label: "Kinder", zaehl: () => fahrtCounts.kinder, preis: () => preise.kinder },
-  { key: "familien", label: "Familie (Tickets)", zaehl: () => fahrtCounts.familien, preis: () => preise.familie },
-  { key: "gruppen", label: "Gruppe (Personen)", zaehl: () => fahrtCounts.gruppen, preis: () => preise.gruppe }
-];
+function subscribeVerkaeufe() {
+  const ref = collection(db, "verkaeufe", `${session.fahrtag}_${session.standort}`, "eintraege");
+  unsubVerkaeufe = onSnapshot(ref, (snap) => {
+    const sums = {};
+    TICKET_TYPES.forEach((t) => { sums[t.key] = { anzahl: 0, umsatz: 0 }; });
+    snap.forEach((d) => {
+      const x = d.data();
+      if (!sums[x.ticket]) sums[x.ticket] = { anzahl: 0, umsatz: 0 };
+      sums[x.ticket].anzahl += x.anzahl || 0;
+      sums[x.ticket].umsatz += x.summe || 0;
+    });
+    verkaeufeSums = sums;
+    renderBericht();
+  }, (err) => showToast("Fehler beim Laden der Verkäufe: " + err.message));
+}
+
+const BERICHT_KATEGORIEN = TICKET_TYPES.map((t) => ({
+  key: t.key,
+  label: t.label,
+  zaehl: () => (verkaeufeSums[t.key] ? verkaeufeSums[t.key].anzahl : 0),
+  umsatzIst: () => (verkaeufeSums[t.key] ? verkaeufeSums[t.key].umsatz : 0),
+  preis: () => preise[t.key] || 0
+}));
+
+// Ermittelt Anzahl/Umsatz für eine Kategorie: manuelle Überschreibung geht vor,
+// sonst die tatsächlich über "Kauf abschließen" erfassten Verkäufe.
+function berichtWert(k) {
+  const override = berichtOverrides[k.key] || {};
+  const anzahl = override.anzahl != null ? override.anzahl : k.zaehl();
+  const umsatz = override.umsatz != null
+    ? override.umsatz
+    : (override.anzahl != null ? anzahl * k.preis() : k.umsatzIst());
+  return { anzahl, umsatz };
+}
 
 function renderBericht() {
   let gesamt = 0;
   berichtBody.innerHTML = BERICHT_KATEGORIEN.map((k) => {
-    const override = berichtOverrides[k.key] || {};
-    const anzahl = override.anzahl != null ? override.anzahl : k.zaehl();
-    const umsatz = override.umsatz != null ? override.umsatz : anzahl * k.preis();
+    const { anzahl, umsatz } = berichtWert(k);
     gesamt += umsatz;
     return `<tr data-kat="${k.key}">
       <td>${k.label}</td>
@@ -601,13 +713,7 @@ berichtZuruecksetzen.addEventListener("click", () => {
 berichtSpeichern.addEventListener("click", async () => {
   try {
     const werte = {};
-    BERICHT_KATEGORIEN.forEach((k) => {
-      const override = berichtOverrides[k.key];
-      werte[k.key] = {
-        anzahl: override && override.anzahl != null ? override.anzahl : k.zaehl(),
-        umsatz: override && override.umsatz != null ? override.umsatz : k.zaehl() * k.preis()
-      };
-    });
+    BERICHT_KATEGORIEN.forEach((k) => { werte[k.key] = berichtWert(k); });
     const istCents = berichtKassenbestand.value.trim() ? toCents(berichtKassenbestand.value) : null;
     await setDoc(berichtRef, {
       fahrtag: session.fahrtag, standort: session.standort,
@@ -672,7 +778,6 @@ numpadOk.addEventListener("click", async () => {
   const grund = numpadGrund.value.trim();
   closeNumpad();
 
-  if (mode === "preis") { rgPreisCents = cents; updateRgDisplay(); return; }
   if (mode === "gegeben") { rgGegebenCents = cents; updateRgDisplay(); return; }
 
   if (mode === "einzahlung" || mode === "auszahlung") {

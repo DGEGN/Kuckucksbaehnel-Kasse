@@ -337,6 +337,36 @@ input { font-family: var(--font-body); }
 .stueck-label { font-weight: 600; color: var(--ink); }
 .stueck-count { font-family: var(--font-mono); font-weight: 700; color: var(--forest); background: var(--paper-edge); border-radius: 20px; padding: 2px 12px; }
 
+/* ---------- Ticket-Auswahl (Verkauf) ---------- */
+.sale-list { list-style: none; margin: 0 0 14px; padding: 0; }
+.sale-row {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px dashed var(--paper-dark);
+}
+.sale-row:last-child { border-bottom: none; }
+.sale-name { font-weight: 600; color: var(--ink); font-size: 0.92rem; }
+.sale-price { font-family: var(--font-mono); font-size: 0.8rem; color: var(--ink-soft); display: block; }
+.sale-stepper { display: flex; align-items: center; gap: 8px; }
+.sale-step-btn {
+  width: 32px; height: 32px; border-radius: 6px; background: var(--paper-edge);
+  border: 1px solid var(--paper-dark); font-size: 1.1rem; font-weight: 700; color: var(--forest);
+  display: flex; align-items: center; justify-content: center; line-height: 1;
+}
+.sale-step-btn:active { background: var(--brass-light); }
+.sale-qty {
+  width: 30px; text-align: center; font-family: var(--font-mono); font-weight: 700; font-size: 1rem;
+}
+.sale-subtotal { font-family: var(--font-mono); font-weight: 700; color: var(--forest); min-width: 64px; text-align: right; }
+
+.sale-total-row {
+  display: flex; justify-content: space-between; align-items: center;
+  border-top: 2px solid var(--ink); padding-top: 10px; font-size: 1.1rem; font-weight: 700;
+}
+
 /* ============================================================
    KASSENBUCH
    ============================================================ */
