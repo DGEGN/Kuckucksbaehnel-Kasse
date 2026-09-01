@@ -3,7 +3,10 @@
 Web-App für den Fahrkartenschalter, im selben Design und mit derselben
 Firebase-Datenbank wie der Fahrgastzähler. Läuft ohne Build-Schritt direkt
 im Browser (HTML/CSS/JS) und synchronisiert **live** zwischen allen
-geöffneten Kassen.
+geöffneten Kassen. Alle Bereiche (Kassenbuch, Verkaufsbericht, Ticketbestand)
+gelten gemeinsam pro Fahrtag, für alle Kassen zusammen — es gibt keinen
+Standort-Bezug mehr, da die Fahrgastzählapp Fahrten nur noch pro Fahrtag
+führt (eine Fahrt = ein Fahrtag).
 
 ## Funktionsweise
 
@@ -17,36 +20,37 @@ abschließen" wird der Verkauf gebucht:
 - die Summe wird als Einzahlung im Kassenbuch dieser Kasse erfasst,
 - der Verkauf wird (je Ticketart) für den Verkaufsbericht gespeichert,
 - **die passende Anzahl Fahrgäste wird automatisch in der Fahrgastzählapp
-  mitgezählt** (Erwachsene/Kinder/Familie, je nach verkaufter Ticketart) —
-  vorausgesetzt, für den Fahrtag/Standort läuft dort bereits eine Zählung.
-  Ist das (noch) nicht der Fall, wird der Verkauf trotzdem gebucht, die App
-  weist aber darauf hin, dass die Fahrgastzahlen nicht aktualisiert wurden.
+  mitgezählt**: Erwachsene- und Kinder-Tickets als `einzelperson`,
+  Familientickets als `familien` — vorausgesetzt, für den Fahrtag existiert
+  dort bereits eine Fahrt. Ist das (noch) nicht der Fall, wird der Verkauf
+  trotzdem gebucht, die App weist aber darauf hin, dass die Fahrgastzahlen
+  nicht aktualisiert wurden.
 
 ### Kassenbuch
-Anfangsbestand einmal pro Fahrtag/Standort eintragen. Danach einfach
-„+ Einzahlung" / „− Auszahlung" mit Betrag und Grund erfassen (z. B.
-Wechselgeld geholt, Trinkgeld, Materialkauf). Die App summiert automatisch:
+Anfangsbestand einmal pro Fahrtag eintragen. Danach einfach „+ Einzahlung" /
+„− Auszahlung" mit Betrag und Grund erfassen (z. B. Wechselgeld geholt,
+Trinkgeld, Materialkauf). Die App summiert automatisch:
 **Anfangsbestand + Einzahlungen − Auszahlungen = Kassenbestand (Soll)**.
-Alle Buchungen aller Kassen desselben Fahrtags/Standorts erscheinen live in
-der gemeinsamen Liste — jeder abgeschlossene Verkauf erscheint hier
-automatisch als Einzahlung.
+Alle Buchungen aller Kassen desselben Fahrtags erscheinen live in der
+gemeinsamen Liste — jeder abgeschlossene Verkauf erscheint hier automatisch
+als Einzahlung.
 
 ### Verkaufsbericht
-Für jede Ticketart trägt man **Anfangsbestand** und **Endstand** der fortlaufenden
-Nummern auf den Fahrkarten ein (gilt gemeinsam für alle Kassen an diesem
-Standort – ein Fahrkartenblock pro Ticketart, nicht pro Kasse). Die App
-berechnet daraus automatisch die verkaufte Anzahl (Endstand − Anfangsbestand),
-den Umsatz je Ticketart und die Gesamteinnahme. In den Feldern „Absatz durch
+Für jede Ticketart trägt man **Anfangsbestand** und **Endstand** der
+fortlaufenden Nummern auf den Fahrkarten ein (gilt gemeinsam für alle Kassen
+an diesem Fahrtag — ein Fahrkartenblock pro Ticketart). Die App berechnet
+daraus automatisch die verkaufte Anzahl (Endstand − Anfangsbestand), den
+Umsatz je Ticketart und die Gesamteinnahme. In den Feldern „Absatz durch
 Kartenzahlung" sowie „Familien-" und „Einzelperson-Gutscheine" trägt man die
-Beträge ein, die nicht bar eingenommen wurden — die App addiert sie und zieht
-sie von der Gesamteinnahme ab, das Ergebnis sind die erwarteten
+Beträge ein, die nicht bar eingenommen wurden — die App addiert sie und
+zieht sie von der Gesamteinnahme ab, das Ergebnis sind die erwarteten
 **Bargeldeinnahmen**. Diese werden automatisch mit der Summe verglichen, die
 die Kassenapp selbst über „Kauf abschließen" (alle Kassen) erfasst hat, samt
 Differenz-Anzeige. „Bericht speichern" sichert alles in Firestore, „als Text
 kopieren" erzeugt eine fertige Zusammenfassung.
 
 ### Ansicht: Kompakt / Ausführlich
-Oben rechts lässt sich jederzeit zwischen einer **kompakten** Ansicht (ein
+Oben rechts lässt sich jederzeit zwischen einer **kompakten** Ansicht (eine
 Spalte, reduzierte Zusatzinfos — ideal für kleine Handy-Bildschirme) und der
 **ausführlichen** Ansicht (mehrspaltig, alle Details — ideal für Tablet/PC)
 umschalten. Die Wahl wird im Browser gespeichert und bleibt beim nächsten
@@ -67,21 +71,32 @@ Fahrten und schreibt Fahrgastzahlen zurück).
 1. In [`app.js`](app.js) ganz oben dieselben `firebaseConfig`-Werte eintragen,
    die auch in der `app.js` der Fahrgastzählapp stehen.
 2. **Sicherheitsregeln aktualisieren**: [`firestore.rules`](firestore.rules)
-   enthält die bestehenden Regeln für `fahrten` **plus** drei neue Bereiche
-   (`kassenbuch`, `berichte`, `verkaeufe`, `einstellungen`). In der
-   Firebase-Konsole unter *Firestore Database* → *Regeln* den **gesamten
-   Inhalt dieser Datei** einfügen und veröffentlichen (ersetzt die bisherige
-   Regel-Datei vollständig, enthält aber weiterhin alles für die
-   Fahrgastzählapp).
+   enthält (zur Orientierung) die Regeln für `fahrten` **plus** vier neue
+   Bereiche (`kassenbuch`, `berichte`, `verkaeufe`, `einstellungen`). In der
+   Firebase-Konsole unter *Firestore Database* → *Regeln* die **vier neuen
+   Blöcke** in die tatsächlich dort hinterlegte Regel-Datei der
+   Fahrgastzählapp einfügen — den `fahrten`-Block **nicht** blind
+   überschreiben, sondern die dort bereits laufenden Regeln behalten und nur
+   ergänzen, damit die Fahrgastzählapp weiterläuft.
 3. Einmal in der App unter dem Tab **„Preise"** die aktuellen Ticketpreise
    eintragen und speichern.
 
-Beim Start wählt man Standort und dann eine der dort bereits in der
-Fahrgastzählapp angelegten Fahrten aus einer Liste — nur so kann die App
-Verkäufe automatisch als Fahrgäste mitzählen. Ist noch keine Fahrt angelegt,
-lässt sich der Fahrtag über „Fahrtag stattdessen manuell eingeben" trotzdem
-frei wählen; die automatische Fahrgastzählung greift dann erst, sobald die
-passende Fahrt in der Fahrgastzählapp existiert.
+Beim Start wählt man eine der bereits in der Fahrgastzählapp angelegten
+Fahrten aus einer Liste — nur so kann die App Verkäufe automatisch als
+Fahrgäste mitzählen. Ist noch keine Fahrt angelegt, lässt sich der Fahrtag
+über „Fahrtag stattdessen manuell eingeben" trotzdem frei wählen; die
+automatische Fahrgastzählung greift dann erst, sobald die passende Fahrt in
+der Fahrgastzählapp existiert.
+
+**Hinweis zur automatischen Zählung**: Die Kassenapp erhöht beim „Kauf
+abschließen" direkt die Felder `einzelperson`/`familien` im `fahrten`-
+Dokument per `increment()`. Falls die Fahrgastzählapp diese Summen
+stattdessen aus den einzelnen Wagen (Feld `wagen`) neu berechnet und dabei
+überschreibt, würde ein per Kassenapp verbuchter Verkauf wieder verloren
+gehen. Bitte einmal testen (ein Ticket verkaufen, dann in der Fahrgastzählapp
+prüfen, ob die Zahl dauerhaft ankommt) und mir Bescheid geben, falls nicht —
+dann müsste die Kassenapp stattdessen z. B. einem bestimmten Wagen oder
+einer separaten „nicht zugeordnet"-Position zugeordnet werden.
 
 ## 2. Auf GitHub veröffentlichen (GitHub Pages)
 
@@ -119,19 +134,19 @@ aus, ohne Fehler anzuzeigen.
 ## Datenmodell (Firestore, neu hinzugekommen)
 
 ```
-kassenbuch/{fahrtag}_{standort}
-  fahrtag, standort
+kassenbuch/{fahrtag}                     z. B. kassenbuch/2026-09-01
+  fahrtag
   anfangsbestand: 5000        (Cent, hier 50,00 €)
   erstellt / aktualisiert: Timestamp
 
-kassenbuch/{kassenId}/buchungen/{id}
+kassenbuch/{fahrtag}/buchungen/{id}
   typ: "einzahlung" | "auszahlung"
   betrag: 500                 (Cent, hier 5,00 €)
   grund: "Verkauf: 2× Einfache Fahrt Erwachsene, 1× Hin- Rückfahrt Kind" | frei eingegeben
   kasse: "Schalter 1"
   zeit: Timestamp
 
-verkaeufe/{fahrtag}_{standort}/eintraege/{id}
+verkaeufe/{fahrtag}/eintraege/{id}
   ticket: "ea" | "ra" | "ek" | "rk" | "ef" | "rf"
   anzahl: 2
   einzelpreis: 500             (Cent, Preis zum Verkaufszeitpunkt)
@@ -139,8 +154,8 @@ verkaeufe/{fahrtag}_{standort}/eintraege/{id}
   kasse: "Schalter 1"
   zeit: Timestamp
 
-berichte/{fahrtag}_{standort}
-  fahrtag, standort, kasse
+berichte/{fahrtag}
+  fahrtag, kasse
   ticketBestand: {
     ea: { anfang: 1200, ende: 1242 },   (fortlaufende Fahrkartennummern)
     ra: { anfang:  340, ende:  352 },
@@ -165,13 +180,12 @@ einstellungen/preise            (ein einzelnes globales Dokument)
   aktualisiert: Timestamp
 ```
 
-Ein abgeschlossener Verkauf schreibt außerdem in die bestehenden
-Collections der Fahrgastzählapp: `fahrten/{fahrtag}_{standort}` (Felder
-`erwachsene`/`kinder`/`familien` werden per `increment()` um die verkaufte
-Anzahl erhöht) sowie je einen Eintrag in
-`fahrten/{fahrtId}/ereignisse` (gleiche Struktur wie die manuelle Zählung,
-damit sich ein Verkauf dort wie gewohnt nachvollziehen/rückgängig machen
-lässt).
+Ein abgeschlossener Verkauf schreibt außerdem in die bestehende Collection
+der Fahrgastzählapp: `fahrten/{fahrtag}` (Felder `einzelperson`/`familien`
+werden per `increment()` um die verkaufte Anzahl erhöht) sowie — sofern die
+Fahrgastzählapp das noch nutzt — je einen Eintrag in
+`fahrten/{fahrtag}/ereignisse` (Felder `kategorie`, `anzahl`, `kasse`,
+`zeit`), analog zur manuellen Zählung.
 
 Alle Beträge werden intern in **ganzen Cent** gespeichert, um
 Rundungsfehler bei Kommazahlen zu vermeiden.
@@ -190,5 +204,5 @@ python3 -m http.server 8000
 - Weitere oder andere Ticketarten: in `app.js` das Array `TICKET_TYPES`
   ergänzen/ändern (Schlüssel, Bezeichnung, Zählkategorie) und in
   `index.html` (Preise-Tab) sowie `firestore.rules` entsprechend nachziehen.
-  Der Verkaufsbericht (`BERICHT_KATEGORIEN`) übernimmt neue Ticketarten
-  automatisch aus `TICKET_TYPES`.
+  Der Verkaufsbericht übernimmt neue Ticketarten automatisch aus
+  `TICKET_TYPES`.

@@ -27,6 +27,7 @@ const firebaseConfig = {
   messagingSenderId: "732559401683",
   appId: "1:732559401683:web:dbfb8ef56c85c73de46a26"
 };
+
 const firebaseApp = initializeApp(firebaseConfig);
 const db = getFirestore(firebaseApp);
 const auth = getAuth(firebaseApp);
@@ -41,7 +42,6 @@ signInAnonymously(auth).catch((err) => {
 // ---------------------------------------------------------
 // Konstanten & Hilfsfunktionen
 // ---------------------------------------------------------
-const STANDORT_LABEL = { neustadt: "Neustadt", lambrecht: "Lambrecht" };
 const LS_KEY = "kb_kasse_session_v1";
 
 const MUENZEN = [
@@ -63,13 +63,13 @@ const MUENZEN = [
 ];
 
 // Fahrkartenarten. "kategorie" ordnet einer Ticketart die Fahrgast-Zählkategorie
-// der Fahrgastzählapp zu (erwachsene / kinder / familien), damit ein Verkauf
+// der Fahrgastzählapp zu (einzelperson / familien), damit ein Verkauf
 // automatisch die passenden Fahrgäste mitzählt.
 const TICKET_TYPES = [
-  { key: "ea", label: "Einfache Fahrt Erwachsene", kategorie: "erwachsene" },
-  { key: "ra", label: "Hin- Rückfahrt Erwachsene", kategorie: "erwachsene" },
-  { key: "ek", label: "Einfache Fahrt Kind", kategorie: "kinder" },
-  { key: "rk", label: "Hin- Rückfahrt Kind", kategorie: "kinder" },
+  { key: "ea", label: "Einfache Fahrt Erwachsene", kategorie: "einzelperson" },
+  { key: "ra", label: "Hin- Rückfahrt Erwachsene", kategorie: "einzelperson" },
+  { key: "ek", label: "Einfache Fahrt Kind", kategorie: "einzelperson" },
+  { key: "rk", label: "Hin- Rückfahrt Kind", kategorie: "einzelperson" },
   { key: "ef", label: "Einfache Fahrt Familie", kategorie: "familien" },
   { key: "rf", label: "Hin- Rückfahrt Familie", kategorie: "familien" }
 ];
@@ -121,14 +121,12 @@ const fahrtagManuellField = el("fahrtagManuellField");
 const fahrtManuellBtn = el("fahrtManuellBtn");
 const fahrtListField = el("fahrtListField");
 const fahrtListEl = el("fahrtList");
-const standortGroup = el("standortGroup");
 const kasseInput = el("kasseInput");
 const startBtn = el("startBtn");
 const setupInfo = el("setupInfo");
 const setupError = el("setupError");
 
 const fahrtagLabel = el("fahrtagLabel");
-const standortLabel = el("standortLabel");
 const kasseLabel = el("kasseLabel");
 const changeSessionBtn = el("changeSession");
 const connStatus = el("connStatus");
@@ -201,8 +199,7 @@ const toastEl = el("toast");
 // ---------------------------------------------------------
 // Zustand
 // ---------------------------------------------------------
-let session = null; // {fahrtag, standort, kasse}
-let selectedStandort = null;
+let session = null; // {fahrtag, kasse}
 let selectedFahrtag = null; // aus der Fahrten-Liste gewählt oder manuell
 let manuellerModus = false;
 let fahrtenListe = []; // aus der Fahrgastzählapp geladene Fahrten
@@ -210,8 +207,8 @@ let fahrtRef = null, kassenbuchRef = null, berichtRef = null;
 let unsubKassenbuch = null, unsubBuchungen = null, unsubFahrt = null, unsubBericht = null, unsubPreise = null, unsubVerkaeufe = null;
 
 let preise = { ea: 0, ra: 0, ek: 0, rk: 0, ef: 0, rf: 0 }; // in Cent, je Ticketart
-let verkaeufeSums = {}; // Ticketart-Schlüssel -> { anzahl, umsatz(Cent) }, aus den heutigen Verkäufen dieser Fahrt/dieses Standorts
-let ticketBestand = {}; // Ticketart-Schlüssel -> { anfang, ende } (fortlaufende Fahrkartennummern, gemeinsam pro Standort)
+let verkaeufeSums = {}; // Ticketart-Schlüssel -> { anzahl, umsatz(Cent) }, aus den heutigen Verkäufen dieser Fahrt
+let ticketBestand = {}; // Ticketart-Schlüssel -> { anfang, ende } (fortlaufende Fahrkartennummern, gemeinsam pro Fahrtag)
 let kassenbuchAnfangCents = 0;
 let buchungenListe = [];
 
@@ -230,14 +227,7 @@ function initSetupScreen() {
 
   let saved = null;
   try { saved = JSON.parse(localStorage.getItem(LS_KEY) || "null"); } catch (e) { /* ignore */ }
-  if (saved) {
-    if (saved.standort) selectStandort(saved.standort);
-    if (saved.kasse) kasseInput.value = saved.kasse;
-  }
-
-  standortGroup.querySelectorAll(".toggle-btn").forEach((btn) => {
-    btn.addEventListener("click", () => selectStandort(btn.dataset.standort));
-  });
+  if (saved?.kasse) kasseInput.value = saved.kasse;
 
   fahrtManuellBtn.addEventListener("click", () => {
     manuellerModus = !manuellerModus;
@@ -250,30 +240,20 @@ function initSetupScreen() {
   fahrtagInput.addEventListener("change", updateStartButtonState);
 
   startBtn.addEventListener("click", startSession);
+  loadFahrtenListe();
   updateStartButtonState();
 }
 
-function selectStandort(value) {
-  selectedStandort = value;
-  selectedFahrtag = null;
-  standortGroup.querySelectorAll(".toggle-btn").forEach((btn) => {
-    btn.classList.toggle("active", btn.dataset.standort === value);
-  });
-  loadFahrtenFuerStandort(value);
-  updateStartButtonState();
-}
-
-async function loadFahrtenFuerStandort(standort) {
+async function loadFahrtenListe() {
   fahrtListEl.innerHTML = '<li class="activity-empty">Lade Fahrten…</li>';
   try {
     await authReady;
     const q = query(collection(db, "fahrten"), orderBy("fahrtag", "desc"), limit(40));
     const snap = await getDocs(q);
-    fahrtenListe = snap.docs
-      .map((d) => ({ id: d.id, ...d.data() }))
-      .filter((f) => f.standort === standort);
+    fahrtenListe = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
     renderFahrtList();
   } catch (err) {
+    console.error("[Kassenapp] Fehler beim Laden der Fahrten:", err);
     fahrtListEl.innerHTML = `<li class="activity-empty">Fahrten konnten nicht geladen werden: ${escapeHtml(err.message)}</li>`;
   }
 }
@@ -282,14 +262,14 @@ function renderFahrtList() {
   if (manuellerModus) { fahrtListField.classList.add("hidden"); return; }
   fahrtListField.classList.remove("hidden");
   if (!fahrtenListe.length) {
-    fahrtListEl.innerHTML = `<li class="activity-empty">Für diesen Standort wurde noch keine Fahrt in der Fahrgastzählapp angelegt.</li>`;
+    fahrtListEl.innerHTML = `<li class="activity-empty">In der Fahrgastzählapp wurde noch keine Fahrt angelegt.</li>`;
     return;
   }
   fahrtListEl.innerHTML = fahrtenListe.map((f) => {
-    const anzahl = (f.erwachsene || 0) + (f.kinder || 0) + (f.familien || 0) + (f.gruppen || 0);
+    const anzahl = (f.einzelperson || 0) + (f.familien || 0) + (f.gruppen || 0);
     return `<li>
       <button type="button" class="fahrt-btn ${f.fahrtag === selectedFahrtag ? "active" : ""}" data-fahrtag="${f.fahrtag}">
-        <span>${formatDateDE(f.fahrtag)}</span>
+        <span>${formatDateDE(f.fahrtag)}${f.zug ? " · " + escapeHtml(f.zug) : ""}</span>
         <span class="fahrt-sub">${anzahl} Fahrgäste bisher</span>
       </button>
     </li>`;
@@ -305,7 +285,7 @@ function renderFahrtList() {
 
 function updateStartButtonState() {
   const hasFahrtag = manuellerModus ? !!fahrtagInput.value : !!selectedFahrtag;
-  startBtn.disabled = !(selectedStandort && hasFahrtag);
+  startBtn.disabled = !hasFahrtag;
 }
 
 function showSetupError(msg) { setupError.textContent = msg; }
@@ -318,14 +298,13 @@ async function startSession() {
   const kasse = kasseInput.value.trim() || "Kasse";
 
   if (!fahrtag) { showSetupError("Bitte einen Fahrtag wählen."); return; }
-  if (!selectedStandort) { showSetupError("Bitte Neustadt oder Lambrecht wählen."); return; }
 
   startBtn.disabled = true;
   startBtn.textContent = "Verbinde…";
 
   try {
     await authReady;
-    session = { fahrtag, standort: selectedStandort, kasse };
+    session = { fahrtag, kasse };
     localStorage.setItem(LS_KEY, JSON.stringify(session));
     enterApp();
   } catch (err) {
@@ -344,10 +323,9 @@ function enterApp() {
   appScreen.classList.remove("hidden");
 
   fahrtagLabel.textContent = formatDateDE(session.fahrtag);
-  standortLabel.textContent = STANDORT_LABEL[session.standort] || session.standort;
   kasseLabel.textContent = session.kasse;
 
-  const docId = `${session.fahrtag}_${session.standort}`;
+  const docId = session.fahrtag;
   fahrtRef = doc(db, "fahrten", docId);
   kassenbuchRef = doc(db, "kassenbuch", docId);
   berichtRef = doc(db, "berichte", docId);
@@ -368,8 +346,7 @@ function leaveApp() {
   setupScreen.classList.remove("hidden");
   showSetupError(""); showSetupInfo("");
   fahrtagInput.value = session?.fahrtag || todayISO();
-  if (session?.standort) selectStandort(session.standort);
-  if (session?.fahrtag) { selectedFahrtag = session.fahrtag; updateStartButtonState(); }
+  if (session?.fahrtag) { selectedFahrtag = session.fahrtag; renderFahrtList(); updateStartButtonState(); }
   kasseInput.value = session?.kasse || "";
 }
 
@@ -542,7 +519,7 @@ rgVerbuchen.addEventListener("click", async () => {
     const grund = "Verkauf: " + posten.map((p) => `${p.anzahl}× ${p.label}`).join(", ");
     await bucheKassenbuch("einzahlung", total, grund);
 
-    const eintraegeRef = collection(db, "verkaeufe", `${session.fahrtag}_${session.standort}`, "eintraege");
+    const eintraegeRef = collection(db, "verkaeufe", session.fahrtag, "eintraege");
     for (const p of posten) {
       await addDoc(eintraegeRef, {
         ticket: p.key, anzahl: p.anzahl, einzelpreis: preise[p.key] || 0,
@@ -565,7 +542,7 @@ rgVerbuchen.addEventListener("click", async () => {
       }
       rgVerbuchenHint.textContent = `${euro(total)} erhalten, ${euro(rueckgeld)} Rückgeld. Fahrgäste wurden automatisch gezählt.`;
     } else {
-      rgVerbuchenHint.textContent = `${euro(total)} erhalten, ${euro(rueckgeld)} Rückgeld. Achtung: Für diesen Fahrtag/Standort läuft noch keine Zählung in der Fahrgastzählapp – Fahrgastzahlen wurden nicht aktualisiert.`;
+      rgVerbuchenHint.textContent = `${euro(total)} erhalten, ${euro(rueckgeld)} Rückgeld. Achtung: Für diesen Fahrtag läuft noch keine Zählung in der Fahrgastzählapp – Fahrgastzahlen wurden nicht aktualisiert.`;
     }
 
     saleQty = {}; rgGegebenCents = 0;
@@ -642,7 +619,7 @@ async function bucheKassenbuch(typ, betragCents, grund) {
   const snap = await getDoc(kassenbuchRef);
   if (!snap.exists()) {
     await setDoc(kassenbuchRef, {
-      fahrtag: session.fahrtag, standort: session.standort,
+      fahrtag: session.fahrtag,
       anfangsbestand: 0, erstellt: serverTimestamp(), aktualisiert: serverTimestamp()
     });
   } else {
@@ -657,7 +634,7 @@ anfangsbestandSpeichern.addEventListener("click", async () => {
   const cents = toCents(anfangsbestandInput.value);
   try {
     await setDoc(kassenbuchRef, {
-      fahrtag: session.fahrtag, standort: session.standort,
+      fahrtag: session.fahrtag,
       anfangsbestand: cents, aktualisiert: serverTimestamp()
     }, { merge: true });
     showToast("Anfangsbestand gespeichert: " + euro(cents));
@@ -673,7 +650,7 @@ kbAuszahlungBtn.addEventListener("click", () => openNumpad("auszahlung", "Auszah
 // VERKAUFSBERICHT
 // ===========================================================
 // ticketBestand/Karte/Gutscheine/Bemerkung werden direkt in Firestore
-// gespeichert (gemeinsam pro Fahrtag/Standort, für alle Kassen sichtbar).
+// gespeichert (gemeinsam pro Fahrtag, für alle Kassen sichtbar).
 function subscribeBericht() {
   unsubBericht = onSnapshot(berichtRef, (snap) => {
     const d = snap.exists() ? snap.data() : {};
@@ -690,7 +667,7 @@ function subscribeBericht() {
 }
 
 function subscribeVerkaeufe() {
-  const ref = collection(db, "verkaeufe", `${session.fahrtag}_${session.standort}`, "eintraege");
+  const ref = collection(db, "verkaeufe", session.fahrtag, "eintraege");
   unsubVerkaeufe = onSnapshot(ref, (snap) => {
     const sums = {};
     TICKET_TYPES.forEach((t) => { sums[t.key] = { anzahl: 0, umsatz: 0 }; });
@@ -773,7 +750,7 @@ function updateBerichtDiff(bargeldCents, appUmsatzCents) {
 berichtSpeichern.addEventListener("click", async () => {
   try {
     await setDoc(berichtRef, {
-      fahrtag: session.fahrtag, standort: session.standort,
+      fahrtag: session.fahrtag,
       ticketBestand,
       kartenzahlung: toCents(berichtKarte.value),
       gutscheinFamilie: toCents(berichtGutscheinFamilie.value),
@@ -789,7 +766,7 @@ berichtSpeichern.addEventListener("click", async () => {
 });
 
 berichtCsv.addEventListener("click", async () => {
-  const zeilen = [`Verkaufsbericht ${formatDateDE(session.fahrtag)} – ${STANDORT_LABEL[session.standort]}`];
+  const zeilen = [`Verkaufsbericht ${formatDateDE(session.fahrtag)}`];
   TICKET_TYPES.forEach((t) => {
     const b = ticketBestand[t.key] || {};
     const verkauft = ticketVerkauft(t.key);

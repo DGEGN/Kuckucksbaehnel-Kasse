@@ -1,22 +1,26 @@
 rules_version = '2';
 
 // WICHTIG: Diese Regeln ergänzen die der Fahrgastzählapp (Collection
-// "fahrten") um drei neue Collections. Beim Veröffentlichen in der
+// "fahrten") um vier neue Collections. Beim Veröffentlichen in der
 // Firebase-Konsole beide Regelsätze zu EINER Datei zusammenführen,
 // nicht die bestehenden "fahrten"-Regeln überschreiben.
+//
+// Der Block für "fahrten" unten ist nur als Orientierung gedacht — die
+// Kassenapp legt "fahrten"-Dokumente nie selbst an (das macht ausschließlich
+// die Fahrgastzählapp), sondern liest sie nur und erhöht beim Kauf per
+// increment() die Felder "einzelperson"/"familien". Bitte beim Zusammenführen
+// die tatsächlich in der Firebase-Konsole hinterlegten Regeln der
+// Fahrgastzählapp verwenden, nicht diesen Block 1:1 übernehmen.
 
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // --- aus der Fahrgastzählapp (unverändert übernehmen) ---
+    // --- aus der Fahrgastzählapp, nur zur Orientierung ---
     match /fahrten/{fahrtId} {
       allow read: if request.auth != null;
       allow create: if request.auth != null
         && request.resource.data.keys().hasAll(
-             ['fahrtag', 'standort', 'sitzplaetze', 'erwachsene', 'kinder', 'familien', 'gruppen'])
-        && request.resource.data.sitzplaetze is int
-        && request.resource.data.sitzplaetze > 0
-        && request.resource.data.standort in ['neustadt', 'lambrecht'];
+             ['fahrtag', 'sitzplaetze', 'einzelperson', 'familien', 'gruppen']);
       allow update: if request.auth != null;
       allow delete: if false;
 
@@ -24,7 +28,7 @@ service cloud.firestore {
         allow read: if request.auth != null;
         allow create: if request.auth != null
           && request.resource.data.keys().hasAll(['kategorie', 'anzahl', 'kasse'])
-          && request.resource.data.kategorie in ['erwachsene', 'kinder', 'familien', 'gruppen'];
+          && request.resource.data.kategorie in ['einzelperson', 'familien', 'gruppen'];
         allow delete: if request.auth != null;
         allow update: if false;
       }
@@ -32,7 +36,7 @@ service cloud.firestore {
 
     // --- neu für die Kassenapp ---
 
-    // Kassenbuch je Fahrtag/Standort (Dokument-ID: "YYYY-MM-DD_standort")
+    // Kassenbuch je Fahrtag (Dokument-ID = Fahrtag, z. B. "2026-09-01"), gemeinsam für alle Kassen
     match /kassenbuch/{kassenId} {
       allow read: if request.auth != null;
       allow create, update: if request.auth != null;
@@ -51,14 +55,14 @@ service cloud.firestore {
       }
     }
 
-    // Verkaufsberichte je Fahrtag/Standort
+    // Verkaufsbericht je Fahrtag (Dokument-ID = Fahrtag)
     match /berichte/{berichtId} {
       allow read: if request.auth != null;
       allow create, update: if request.auth != null;
       allow delete: if false;
     }
 
-    // Einzelne Verkäufe (Kassenbon-Positionen) je Fahrtag/Standort,
+    // Einzelne Verkäufe (Kassenbon-Positionen) je Fahrtag,
     // Grundlage für den automatischen Vorschlag im Verkaufsbericht
     match /verkaeufe/{verkaufId} {
       allow read: if request.auth != null;

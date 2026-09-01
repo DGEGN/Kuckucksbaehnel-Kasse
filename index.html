@@ -19,18 +19,10 @@
     <h1>Kassenapp</h1>
     <p class="setup-sub">Kuckucks-Bähnel</p>
 
-    <div class="field">
-      <label>Standort</label>
-      <div class="toggle-group" id="standortGroup">
-        <button type="button" class="toggle-btn" data-standort="neustadt">Neustadt</button>
-        <button type="button" class="toggle-btn" data-standort="lambrecht">Lambrecht</button>
-      </div>
-    </div>
-
     <div class="field" id="fahrtListField">
       <label>Fahrt (aus der Fahrgastzählapp)</label>
       <ul class="fahrt-list" id="fahrtList">
-        <li class="activity-empty">Bitte zuerst einen Standort wählen.</li>
+        <li class="activity-empty">Lade Fahrten…</li>
       </ul>
       <button type="button" class="link-btn" id="fahrtManuellBtn">Fahrtag stattdessen manuell eingeben</button>
     </div>
@@ -68,10 +60,6 @@
       <div class="meta-block">
         <span class="meta-label">Fahrtag</span>
         <span id="fahrtagLabel" class="meta-value">–</span>
-      </div>
-      <div class="meta-block">
-        <span class="meta-label">Standort</span>
-        <span id="standortLabel" class="meta-value">–</span>
       </div>
       <div class="meta-block">
         <span class="meta-label">Kasse</span>
@@ -153,7 +141,7 @@
         <div class="panel">
           <div class="panel-head">
             <h2>Kassenstand</h2>
-            <span class="panel-sub">heute, diese Kasse/dieser Standort</span>
+            <span class="panel-sub">heute, alle Kassen</span>
           </div>
 
           <div class="kb-anfangsbestand">
@@ -207,7 +195,7 @@
       <div class="panel">
         <div class="panel-head">
           <h2>Fahrkarten-Bestand</h2>
-          <span class="panel-sub" id="berichtQuelle">gilt gemeinsam für alle Kassen an diesem Standort</span>
+          <span class="panel-sub" id="berichtQuelle">gilt gemeinsam für alle Kassen an diesem Fahrtag</span>
         </div>
 
         <table class="bericht-table">
