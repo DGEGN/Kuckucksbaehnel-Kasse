@@ -61,15 +61,17 @@ const MUENZEN = [
 ];
 
 // Fahrkartenarten. "kategorie" ordnet einer Ticketart die Fahrgast-Zählkategorie
-// der Fahrgastzählapp zu (einzelperson / familien), damit ein Verkauf
-// automatisch die passenden Fahrgäste mitzählt.
+// der Fahrgastzählapp zu (einzelperson / familien). "personen" gibt an, wie
+// viele Fahrgäste EIN verkauftes Ticket dieser Art zählt (ein Familienticket
+// steht für 4 Personen), damit ein Verkauf automatisch die passenden
+// Fahrgäste mitzählt.
 const TICKET_TYPES = [
-  { key: "ea", label: "Einfache Fahrt Erwachsene", kategorie: "einzelperson" },
-  { key: "ra", label: "Hin- Rückfahrt Erwachsene", kategorie: "einzelperson" },
-  { key: "ek", label: "Einfache Fahrt Kind", kategorie: "einzelperson" },
-  { key: "rk", label: "Hin- Rückfahrt Kind", kategorie: "einzelperson" },
-  { key: "ef", label: "Einfache Fahrt Familie", kategorie: "familien" },
-  { key: "rf", label: "Hin- Rückfahrt Familie", kategorie: "familien" }
+  { key: "ea", label: "Einfache Fahrt Erwachsene", kategorie: "einzelperson", personen: 1 },
+  { key: "ra", label: "Hin- Rückfahrt Erwachsene", kategorie: "einzelperson", personen: 1 },
+  { key: "ek", label: "Einfache Fahrt Kind", kategorie: "einzelperson", personen: 1 },
+  { key: "rk", label: "Hin- Rückfahrt Kind", kategorie: "einzelperson", personen: 1 },
+  { key: "ef", label: "Einfache Fahrt Familie", kategorie: "familien", personen: 4 },
+  { key: "rf", label: "Hin- Rückfahrt Familie", kategorie: "familien", personen: 4 }
 ];
 
 function todayISO() {
@@ -602,9 +604,9 @@ rgVerbuchen.addEventListener("click", async () => {
       });
     }
 
-    // Fahrgäste automatisch in der Fahrgastzählapp mitzählen
+    // Fahrgäste automatisch in der Fahrgastzählapp mitzählen (Familienticket = 4 Personen)
     const kategorieSummen = {};
-    posten.forEach((p) => { kategorieSummen[p.kategorie] = (kategorieSummen[p.kategorie] || 0) + p.anzahl; });
+    posten.forEach((p) => { kategorieSummen[p.kategorie] = (kategorieSummen[p.kategorie] || 0) + p.anzahl * (p.personen || 1); });
 
     const rueckgeld = Math.max(0, rgGegebenCents - total);
     const fahrtSnap = fahrtRef ? await getDoc(fahrtRef) : null;
