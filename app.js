@@ -27,6 +27,7 @@ const firebaseConfig = {
   messagingSenderId: "732559401683",
   appId: "1:732559401683:web:dbfb8ef56c85c73de46a26"
 };
+
 const firebaseApp = initializeApp(firebaseConfig);
 const db = getFirestore(firebaseApp);
 const auth = getAuth(firebaseApp);
@@ -206,7 +207,7 @@ const toastEl = el("toast");
 // Zustand
 // ---------------------------------------------------------
 let session = null; // {fahrtag, kasse}
-let selectedFahrtag = null; // aus der Fahrten-Liste gewählt oder manuell
+let selectedFahrtId = null; // echte Dokument-ID in "fahrten" (z. B. "2026-09-01_sonderzug"), aus der Liste gewählt
 let manuellerModus = false;
 let setupInitialized = false;
 let fahrtenListe = []; // aus der Fahrgastzählapp geladene Fahrten
@@ -297,7 +298,7 @@ function initSetupScreen() {
     manuellerModus = !manuellerModus;
     fahrtagManuellField.classList.toggle("hidden", !manuellerModus);
     fahrtManuellBtn.textContent = manuellerModus ? "Fahrt stattdessen aus der Liste wählen" : "Fahrtag stattdessen manuell eingeben";
-    if (manuellerModus) selectedFahrtag = null;
+    if (manuellerModus) selectedFahrtId = null;
     renderFahrtList();
     updateStartButtonState();
   });
@@ -332,7 +333,7 @@ function renderFahrtList() {
   fahrtListEl.innerHTML = fahrtenListe.map((f) => {
     const anzahl = (f.einzelperson || 0) + (f.familien || 0) + (f.gruppen || 0);
     return `<li>
-      <button type="button" class="fahrt-btn ${f.fahrtag === selectedFahrtag ? "active" : ""}" data-fahrtag="${f.fahrtag}">
+      <button type="button" class="fahrt-btn ${f.id === selectedFahrtId ? "active" : ""}" data-id="${f.id}">
         <span>${formatDateDE(f.fahrtag)}${f.zug ? " · " + escapeHtml(f.zug) : ""}</span>
         <span class="fahrt-sub">${anzahl} Fahrgäste bisher</span>
       </button>
@@ -340,7 +341,7 @@ function renderFahrtList() {
   }).join("");
   fahrtListEl.querySelectorAll(".fahrt-btn").forEach((btn) => {
     btn.addEventListener("click", () => {
-      selectedFahrtag = btn.dataset.fahrtag;
+      selectedFahrtId = btn.dataset.id;
       renderFahrtList();
       updateStartButtonState();
     });
@@ -348,7 +349,7 @@ function renderFahrtList() {
 }
 
 function updateStartButtonState() {
-  const hasFahrtag = manuellerModus ? !!fahrtagInput.value : !!selectedFahrtag;
+  const hasFahrtag = manuellerModus ? !!fahrtagInput.value : !!selectedFahrtId;
   startBtn.disabled = !hasFahrtag;
 }
 
@@ -358,7 +359,15 @@ function showSetupInfo(msg) { setupInfo.textContent = msg; }
 async function startSession() {
   showSetupError(""); showSetupInfo("");
 
-  const fahrtag = manuellerModus ? fahrtagInput.value : selectedFahrtag;
+  let fahrtag, fahrtId;
+  if (manuellerModus) {
+    fahrtag = fahrtagInput.value;
+    fahrtId = null; // echte "fahrten"-Dokument-ID unbekannt -> keine automatische Zählung möglich
+  } else {
+    const gewaehlt = fahrtenListe.find((f) => f.id === selectedFahrtId);
+    fahrtag = gewaehlt?.fahrtag;
+    fahrtId = gewaehlt?.id || null;
+  }
   const kasse = kasseInput.value.trim() || "Kasse";
 
   if (!fahrtag) { showSetupError("Bitte einen Fahrtag wählen."); return; }
@@ -368,7 +377,7 @@ async function startSession() {
 
   try {
     await authReady;
-    session = { fahrtag, kasse };
+    session = { fahrtag, fahrtId, kasse };
     localStorage.setItem(LS_KEY, JSON.stringify(session));
     enterApp();
   } catch (err) {
@@ -389,8 +398,8 @@ function enterApp() {
   fahrtagLabel.textContent = formatDateDE(session.fahrtag);
   kasseLabel.textContent = session.kasse;
 
-  const docId = session.fahrtag;
-  fahrtRef = doc(db, "fahrten", docId);
+  const docId = session.fahrtag; // Kassenbuch/Bericht/Verkäufe: gemeinsam pro Fahrtag, unabhängig vom Zug
+  fahrtRef = session.fahrtId ? doc(db, "fahrten", session.fahrtId) : null;
   kassenbuchRef = doc(db, "kassenbuch", docId);
   berichtRef = doc(db, "berichte", docId);
 
@@ -410,7 +419,7 @@ function leaveApp() {
   setupScreen.classList.remove("hidden");
   showSetupError(""); showSetupInfo("");
   fahrtagInput.value = session?.fahrtag || todayISO();
-  if (session?.fahrtag) { selectedFahrtag = session.fahrtag; renderFahrtList(); updateStartButtonState(); }
+  if (session?.fahrtId) { selectedFahrtId = session.fahrtId; renderFahrtList(); updateStartButtonState(); }
   kasseInput.value = session?.kasse || "";
 }
 
@@ -597,9 +606,9 @@ rgVerbuchen.addEventListener("click", async () => {
     const kategorieSummen = {};
     posten.forEach((p) => { kategorieSummen[p.kategorie] = (kategorieSummen[p.kategorie] || 0) + p.anzahl; });
 
-    const fahrtSnap = await getDoc(fahrtRef);
     const rueckgeld = Math.max(0, rgGegebenCents - total);
-    if (fahrtSnap.exists()) {
+    const fahrtSnap = fahrtRef ? await getDoc(fahrtRef) : null;
+    if (fahrtSnap && fahrtSnap.exists()) {
       const updates = {};
       Object.entries(kategorieSummen).forEach(([kat, anz]) => { updates[kat] = increment(anz); });
       await updateDoc(fahrtRef, updates);
@@ -625,6 +634,14 @@ rgVerbuchen.addEventListener("click", async () => {
 // KASSENBUCH
 // ===========================================================
 function subscribeFahrt() {
+  if (!fahrtRef) {
+    // Manuell eingegebener Fahrtag ohne bekannte "fahrten"-Dokument-ID:
+    // Verbindungsstatus stattdessen am Kassenbuch ablesen.
+    unsubFahrt = onSnapshot(kassenbuchRef, (snap) => {
+      setConnStatus(snap.metadata.fromCache ? "offline" : "online");
+    }, () => setConnStatus("offline"));
+    return;
+  }
   unsubFahrt = onSnapshot(fahrtRef, (snap) => {
     setConnStatus(snap.metadata.fromCache ? "offline" : "online");
   }, (err) => {

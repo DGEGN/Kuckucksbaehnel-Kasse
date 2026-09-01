@@ -97,12 +97,13 @@ können alle Bearbeiter damit verkaufen.
 3. Einmal in der App unter dem Tab **„Preise"** (mit einem Admin-Konto) die
    aktuellen Ticketpreise eintragen und speichern.
 
-Nach dem Login wählt man eine der bereits in der Fahrgastzählapp angelegten
-Fahrten aus einer Liste — nur so kann die App Verkäufe automatisch als
-Fahrgäste mitzählen. Ist noch keine Fahrt angelegt, lässt sich der Fahrtag
-über „Fahrtag stattdessen manuell eingeben" trotzdem frei wählen; die
-automatische Fahrgastzählung greift dann erst, sobald die passende Fahrt in
-der Fahrgastzählapp existiert.
+**Wichtig zur Fahrten-Zuordnung**: In der Fahrgastzählapp ist die
+Dokument-ID einer Fahrt `Fahrtag_Zug` (z. B. `2026-09-01_sonderzug`), nicht
+nur der Fahrtag. Die Kassenapp merkt sich beim Auswählen aus der Liste
+automatisch die richtige, vollständige ID für die automatische
+Fahrgastzählung. Nur im manuellen Modus (Fahrtag frei eingegeben, keine
+Fahrt aus der Liste gewählt) kennt die Kassenapp diese ID nicht und kann
+deshalb nicht automatisch mitzählen – das ist so beabsichtigt.
 
 ## 2. Auf GitHub veröffentlichen (GitHub Pages)
 
