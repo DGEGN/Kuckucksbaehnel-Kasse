@@ -9,7 +9,7 @@ import {
   orderBy, limit, deleteDoc, getDocs
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import {
-  getAuth, signInAnonymously, onAuthStateChanged
+  getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
 // ---------------------------------------------------------
@@ -19,13 +19,12 @@ import {
 // Firebase-Konsole -> Projekteinstellungen -> "Meine Apps" -> Web-App
 // ---------------------------------------------------------
 const firebaseConfig = {
-  apiKey: "AIzaSyCpfHTMh8zx2hmcxjF-ayIjW0lFtJcBtSM",
-  authDomain: "kuckuck-fahrkarten.firebaseapp.com",
-  databaseURL: "https://kuckuck-fahrkarten-default-rtdb.europe-west1.firebasedatabase.app",
-  projectId: "kuckuck-fahrkarten",
-  storageBucket: "kuckuck-fahrkarten.firebasestorage.app",
-  messagingSenderId: "732559401683",
-  appId: "1:732559401683:web:dbfb8ef56c85c73de46a26"
+  apiKey: "DEIN_API_KEY",
+  authDomain: "DEIN_PROJEKT.firebaseapp.com",
+  projectId: "DEIN_PROJEKT",
+  storageBucket: "DEIN_PROJEKT.appspot.com",
+  messagingSenderId: "DEINE_SENDER_ID",
+  appId: "DEINE_APP_ID"
 };
 
 const firebaseApp = initializeApp(firebaseConfig);
@@ -35,9 +34,7 @@ const auth = getAuth(firebaseApp);
 const authReady = new Promise((resolve) => {
   onAuthStateChanged(auth, (user) => { if (user) resolve(user); });
 });
-signInAnonymously(auth).catch((err) => {
-  showSetupError("Verbindung zu Firebase fehlgeschlagen: " + err.message);
-});
+onAuthStateChanged(auth, handleAuthState);
 
 // ---------------------------------------------------------
 // Konstanten & Hilfsfunktionen
@@ -115,6 +112,15 @@ function escapeHtml(str) {
 const el = (id) => document.getElementById(id);
 
 const setupScreen = el("setup");
+const loginScreen = el("login");
+const loginEmail = el("loginEmail");
+const loginPassword = el("loginPassword");
+const loginBtn = el("loginBtn");
+const loginError = el("loginError");
+const warteFreigabeScreen = el("warteFreigabe");
+const warteFreigabeEmail = el("warteFreigabeEmail");
+const warteFreigabeAbmelden = el("warteFreigabeAbmelden");
+const logoutBtn = el("logoutBtn");
 const appScreen = el("app");
 const fahrtagInput = el("fahrtag");
 const fahrtagManuellField = el("fahrtagManuellField");
@@ -202,6 +208,7 @@ const toastEl = el("toast");
 let session = null; // {fahrtag, kasse}
 let selectedFahrtag = null; // aus der Fahrten-Liste gewählt oder manuell
 let manuellerModus = false;
+let setupInitialized = false;
 let fahrtenListe = []; // aus der Fahrgastzählapp geladene Fahrten
 let fahrtRef = null, kassenbuchRef = null, berichtRef = null;
 let unsubKassenbuch = null, unsubBuchungen = null, unsubFahrt = null, unsubBericht = null, unsubPreise = null, unsubVerkaeufe = null;
@@ -220,9 +227,66 @@ let numpadValue = "";
 let numpadTargetField = null;
 
 // ===========================================================
+// LOGIN / FREIGABE
+// ===========================================================
+function showOnly(screen) {
+  [loginScreen, warteFreigabeScreen, setupScreen, appScreen].forEach((s) => s.classList.add("hidden"));
+  screen.classList.remove("hidden");
+}
+
+async function handleAuthState(user) {
+  if (!user) {
+    showOnly(loginScreen);
+    return;
+  }
+  loginBtn.disabled = false;
+  loginBtn.textContent = "Anmelden";
+  try {
+    const benutzerSnap = await getDoc(doc(db, "benutzer", user.uid));
+    const freigegeben = benutzerSnap.exists() && benutzerSnap.data().freigegeben === true;
+    if (!freigegeben) {
+      warteFreigabeEmail.textContent = user.email || "";
+      showOnly(warteFreigabeScreen);
+      return;
+    }
+    showOnly(setupScreen);
+    initSetupScreen();
+  } catch (err) {
+    loginError.textContent = "Fehler beim Prüfen der Freischaltung: " + err.message;
+    showOnly(loginScreen);
+  }
+}
+
+loginBtn.addEventListener("click", async () => {
+  loginError.textContent = "";
+  const email = loginEmail.value.trim();
+  const password = loginPassword.value;
+  if (!email || !password) { loginError.textContent = "Bitte E-Mail und Passwort eingeben."; return; }
+  loginBtn.disabled = true;
+  loginBtn.textContent = "Melde an…";
+  try {
+    await signInWithEmailAndPassword(auth, email, password);
+    // handleAuthState übernimmt danach automatisch (onAuthStateChanged)
+  } catch (err) {
+    loginBtn.disabled = false;
+    loginBtn.textContent = "Anmelden";
+    loginError.textContent = err.code === "auth/invalid-credential" || err.code === "auth/wrong-password" || err.code === "auth/user-not-found"
+      ? "E-Mail oder Passwort ist falsch."
+      : "Fehler: " + err.message;
+  }
+});
+
+async function logout() {
+  try { await signOut(auth); } catch (err) { /* ignore */ }
+}
+warteFreigabeAbmelden.addEventListener("click", logout);
+
+// ===========================================================
 // SETUP SCREEN
 // ===========================================================
 function initSetupScreen() {
+  if (setupInitialized) { loadFahrtenListe(); updateStartButtonState(); return; }
+  setupInitialized = true;
   fahrtagInput.value = todayISO();
 
   let saved = null;
@@ -402,7 +466,9 @@ preiseSpeichern.addEventListener("click", async () => {
     preiseHinweis.textContent = "Preise gespeichert – gelten sofort für alle Kassen.";
     setTimeout(() => { preiseHinweis.textContent = ""; }, 4000);
   } catch (err) {
-    preiseHinweis.textContent = "Fehler: " + err.message;
+    preiseHinweis.textContent = err.code === "permission-denied"
+      ? "Preise ändern dürfen laut Regeln nur Admin-Konten (nicht jedes Bearbeiter-Konto)."
+      : "Fehler: " + err.message;
   }
 });
 
@@ -844,6 +910,10 @@ function showToast(msg) {
 }
 
 changeSessionBtn.addEventListener("click", leaveApp);
+logoutBtn.addEventListener("click", () => {
+  [unsubKassenbuch, unsubBuchungen, unsubFahrt, unsubBericht, unsubPreise, unsubVerkaeufe].forEach((u) => u && u());
+  logout();
+});
 
 window.addEventListener("online", () => setConnStatus(fahrtRef ? "online" : "connecting"));
 window.addEventListener("offline", () => setConnStatus("offline"));

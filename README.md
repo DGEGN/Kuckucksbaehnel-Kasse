@@ -10,6 +10,12 @@ führt (eine Fahrt = ein Fahrtag).
 
 ## Funktionsweise
 
+### Anmeldung
+Beim Öffnen meldet man sich mit dem Bearbeiter-Konto (E-Mail/Passwort) aus
+der Fahrgastzählapp an. Ist das Konto noch nicht von einem Admin
+freigeschaltet, zeigt die App „Warte auf Freigabe" statt der Kasse. Über
+„Abmelden" (oben rechts) kann jederzeit ein anderes Konto verwendet werden.
+
 ### Verkauf
 Ticketart(en) und Anzahl auswählen (− / + oder direkt die Zahl eintippen) —
 die Summe wird automatisch aus den hinterlegten Preisen berechnet. Den vom
@@ -62,41 +68,41 @@ Erwachsene / Kind / Familie) — gelten sofort für alle Kassen und fließen in
 Verkauf und Verkaufsbericht ein. Einmal einrichten, danach nur bei
 Preisänderungen anpassen.
 
-## 1. Mit demselben Firebase-Projekt verbinden
+## 1. Anmeldung & Firebase-Projekt
 
-Diese App nutzt **dieselbe Firebase-Konfiguration** wie die Fahrgastzählapp,
-damit beide auf dieselbe Datenbank zugreifen (Verkauf braucht Zugriff auf die
-Fahrten und schreibt Fahrgastzahlen zurück).
+Die Kassenapp verwendet **dieselben Bearbeiter-Konten** (E-Mail/Passwort,
+`@eisenbahnmuseum-neustadt.de`) wie die Fahrgastzählapp — es gibt keine
+eigene Registrierung in der Kassenapp. Neue Konten legt man wie gewohnt in
+der Fahrgastzählapp an; ein Admin muss sie dort freischalten
+(`freigegeben: true` in `benutzer/{uid}`), bevor sich das Konto in der
+Kassenapp anmelden **und etwas buchen** kann. Ohne Freischaltung zeigt die
+Kassenapp einen „Warte auf Freigabe"-Bildschirm.
+
+**Ticketpreise sind admin-pflichtig**: Der Tab „Preise" lässt sich laut den
+aktuellen Sicherheitsregeln nur mit einem **Admin**-Konto speichern (analog
+zum Sitzplatz-Puffer der Fahrgastzählapp), nicht mit einem normalen
+Bearbeiter-Konto. Ein Admin muss die Preise also einmalig eintragen; danach
+können alle Bearbeiter damit verkaufen.
 
 1. In [`app.js`](app.js) ganz oben dieselben `firebaseConfig`-Werte eintragen,
    die auch in der `app.js` der Fahrgastzählapp stehen.
-2. **Sicherheitsregeln aktualisieren**: [`firestore.rules`](firestore.rules)
-   enthält (zur Orientierung) die Regeln für `fahrten` **plus** vier neue
-   Bereiche (`kassenbuch`, `berichte`, `verkaeufe`, `einstellungen`). In der
-   Firebase-Konsole unter *Firestore Database* → *Regeln* die **vier neuen
-   Blöcke** in die tatsächlich dort hinterlegte Regel-Datei der
-   Fahrgastzählapp einfügen — den `fahrten`-Block **nicht** blind
-   überschreiben, sondern die dort bereits laufenden Regeln behalten und nur
-   ergänzen, damit die Fahrgastzählapp weiterläuft.
-3. Einmal in der App unter dem Tab **„Preise"** die aktuellen Ticketpreise
-   eintragen und speichern.
+2. **Sicherheitsregeln**: [`firestore.rules`](firestore.rules) enthält die
+   vollständigen, bereits mit der Fahrgastzählapp zusammengeführten Regeln
+   (Rollenmodell `istAdmin()`/`istBearbeiter()`, Archivierung, plus die vier
+   neuen Kassenapp-Collections). Diese Datei komplett in der Firebase-Konsole
+   unter *Firestore Database* → *Regeln* einfügen und veröffentlichen.
+   **Falls sich die Regeln der Fahrgastzählapp seitdem nochmal geändert
+   haben, bitte vorher kurz Bescheid geben** — sonst arbeitet diese Datei
+   mit einem veralteten Stand.
+3. Einmal in der App unter dem Tab **„Preise"** (mit einem Admin-Konto) die
+   aktuellen Ticketpreise eintragen und speichern.
 
-Beim Start wählt man eine der bereits in der Fahrgastzählapp angelegten
+Nach dem Login wählt man eine der bereits in der Fahrgastzählapp angelegten
 Fahrten aus einer Liste — nur so kann die App Verkäufe automatisch als
 Fahrgäste mitzählen. Ist noch keine Fahrt angelegt, lässt sich der Fahrtag
 über „Fahrtag stattdessen manuell eingeben" trotzdem frei wählen; die
 automatische Fahrgastzählung greift dann erst, sobald die passende Fahrt in
 der Fahrgastzählapp existiert.
-
-**Hinweis zur automatischen Zählung**: Die Kassenapp erhöht beim „Kauf
-abschließen" direkt die Felder `einzelperson`/`familien` im `fahrten`-
-Dokument per `increment()`. Falls die Fahrgastzählapp diese Summen
-stattdessen aus den einzelnen Wagen (Feld `wagen`) neu berechnet und dabei
-überschreibt, würde ein per Kassenapp verbuchter Verkauf wieder verloren
-gehen. Bitte einmal testen (ein Ticket verkaufen, dann in der Fahrgastzählapp
-prüfen, ob die Zahl dauerhaft ankommt) und mir Bescheid geben, falls nicht —
-dann müsste die Kassenapp stattdessen z. B. einem bestimmten Wagen oder
-einer separaten „nicht zugeordnet"-Position zugeordnet werden.
 
 ## 2. Auf GitHub veröffentlichen (GitHub Pages)
 

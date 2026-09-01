@@ -12,8 +12,40 @@
 </head>
 <body>
 
+<!-- ===================== LOGIN ===================== -->
+<div id="login" class="setup">
+  <div class="setup-card">
+    <img class="setup-logo" src="assets/logo.png" alt="Kuckucks-Bähnel Logo" onerror="this.style.display='none'">
+    <h1>Kassenapp</h1>
+    <p class="setup-sub">Kuckucks-Bähnel</p>
+
+    <div class="field">
+      <label for="loginEmail">Museums-E-Mail</label>
+      <input type="email" id="loginEmail" placeholder="name@eisenbahnmuseum-neustadt.de" autocomplete="username">
+    </div>
+    <div class="field">
+      <label for="loginPassword">Passwort</label>
+      <input type="password" id="loginPassword" autocomplete="current-password">
+    </div>
+
+    <button id="loginBtn" class="btn btn-brass btn-block">Anmelden</button>
+    <p id="loginError" class="setup-error"></p>
+    <p class="rg-hint">Dasselbe Bearbeiter-Konto wie in der Fahrgastzählapp. Neue Konten werden dort registriert.</p>
+  </div>
+</div>
+
+<!-- ===================== WARTE AUF FREIGABE ===================== -->
+<div id="warteFreigabe" class="setup hidden">
+  <div class="setup-card">
+    <img class="setup-logo" src="assets/logo.png" alt="Kuckucks-Bähnel Logo" onerror="this.style.display='none'">
+    <h1>Warte auf Freigabe</h1>
+    <p class="rg-hint">Dein Konto (<span id="warteFreigabeEmail"></span>) ist noch nicht von einem Admin freigeschaltet. Bitte wende dich an einen Admin oder versuche es später erneut.</p>
+    <button id="warteFreigabeAbmelden" class="btn btn-ghost btn-block">Abmelden</button>
+  </div>
+</div>
+
 <!-- ===================== SETUP / START-SCREEN ===================== -->
-<div id="setup" class="setup">
+<div id="setup" class="setup hidden">
   <div class="setup-card">
     <img class="setup-logo" src="assets/logo.png" alt="Kuckucks-Bähnel Logo" onerror="this.style.display='none'">
     <h1>Kassenapp</h1>
@@ -66,6 +98,7 @@
         <span id="kasseLabel" class="meta-value">–</span>
       </div>
       <button id="changeSession" class="link-btn">Kasse wechseln</button>
+      <button id="logoutBtn" class="link-btn">Abmelden</button>
     </div>
 
     <button id="viewToggle" class="view-toggle" type="button" aria-pressed="false">
