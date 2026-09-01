@@ -27,7 +27,6 @@ const firebaseConfig = {
   messagingSenderId: "732559401683",
   appId: "1:732559401683:web:dbfb8ef56c85c73de46a26"
 };
-
 const firebaseApp = initializeApp(firebaseConfig);
 const db = getFirestore(firebaseApp);
 const auth = getAuth(firebaseApp);
@@ -118,6 +117,10 @@ const el = (id) => document.getElementById(id);
 const setupScreen = el("setup");
 const appScreen = el("app");
 const fahrtagInput = el("fahrtag");
+const fahrtagManuellField = el("fahrtagManuellField");
+const fahrtManuellBtn = el("fahrtManuellBtn");
+const fahrtListField = el("fahrtListField");
+const fahrtListEl = el("fahrtList");
 const standortGroup = el("standortGroup");
 const kasseInput = el("kasseInput");
 const startBtn = el("startBtn");
@@ -129,6 +132,7 @@ const standortLabel = el("standortLabel");
 const kasseLabel = el("kasseLabel");
 const changeSessionBtn = el("changeSession");
 const connStatus = el("connStatus");
+const viewToggle = el("viewToggle");
 
 const tabbar = el("tabbar");
 
@@ -160,11 +164,16 @@ const kbList = el("kbList");
 const berichtQuelle = el("berichtQuelle");
 const berichtBody = el("berichtBody");
 const berichtGesamt = el("berichtGesamt");
-const berichtKassenbestand = el("berichtKassenbestand");
+const berichtKarte = el("berichtKarte");
+const berichtGutscheinFamilie = el("berichtGutscheinFamilie");
+const berichtGutscheinEinzel = el("berichtGutscheinEinzel");
+const berichtSummeEinnahme = el("berichtSummeEinnahme");
+const berichtSummeAbzug = el("berichtSummeAbzug");
+const berichtBargeld = el("berichtBargeld");
+const berichtAppUmsatz = el("berichtAppUmsatz");
 const berichtDiffRow = el("berichtDiffRow");
 const berichtDiff = el("berichtDiff");
 const berichtBemerkung = el("berichtBemerkung");
-const berichtZuruecksetzen = el("berichtZuruecksetzen");
 const berichtSpeichern = el("berichtSpeichern");
 const berichtCsv = el("berichtCsv");
 const berichtHinweis = el("berichtHinweis");
@@ -194,12 +203,15 @@ const toastEl = el("toast");
 // ---------------------------------------------------------
 let session = null; // {fahrtag, standort, kasse}
 let selectedStandort = null;
+let selectedFahrtag = null; // aus der Fahrten-Liste gewählt oder manuell
+let manuellerModus = false;
+let fahrtenListe = []; // aus der Fahrgastzählapp geladene Fahrten
 let fahrtRef = null, kassenbuchRef = null, berichtRef = null;
 let unsubKassenbuch = null, unsubBuchungen = null, unsubFahrt = null, unsubBericht = null, unsubPreise = null, unsubVerkaeufe = null;
 
 let preise = { ea: 0, ra: 0, ek: 0, rk: 0, ef: 0, rf: 0 }; // in Cent, je Ticketart
 let verkaeufeSums = {}; // Ticketart-Schlüssel -> { anzahl, umsatz(Cent) }, aus den heutigen Verkäufen dieser Fahrt/dieses Standorts
-let berichtOverrides = {}; // { <ticketKey>: {anzahl, umsatz} }, falls im Verkaufsbericht überschrieben
+let ticketBestand = {}; // Ticketart-Schlüssel -> { anfang, ende } (fortlaufende Fahrkartennummern, gemeinsam pro Standort)
 let kassenbuchAnfangCents = 0;
 let buchungenListe = [];
 
@@ -227,14 +239,73 @@ function initSetupScreen() {
     btn.addEventListener("click", () => selectStandort(btn.dataset.standort));
   });
 
+  fahrtManuellBtn.addEventListener("click", () => {
+    manuellerModus = !manuellerModus;
+    fahrtagManuellField.classList.toggle("hidden", !manuellerModus);
+    fahrtManuellBtn.textContent = manuellerModus ? "Fahrt stattdessen aus der Liste wählen" : "Fahrtag stattdessen manuell eingeben";
+    if (manuellerModus) selectedFahrtag = null;
+    renderFahrtList();
+    updateStartButtonState();
+  });
+  fahrtagInput.addEventListener("change", updateStartButtonState);
+
   startBtn.addEventListener("click", startSession);
+  updateStartButtonState();
 }
 
 function selectStandort(value) {
   selectedStandort = value;
+  selectedFahrtag = null;
   standortGroup.querySelectorAll(".toggle-btn").forEach((btn) => {
     btn.classList.toggle("active", btn.dataset.standort === value);
   });
+  loadFahrtenFuerStandort(value);
+  updateStartButtonState();
+}
+
+async function loadFahrtenFuerStandort(standort) {
+  fahrtListEl.innerHTML = '<li class="activity-empty">Lade Fahrten…</li>';
+  try {
+    await authReady;
+    const q = query(collection(db, "fahrten"), orderBy("fahrtag", "desc"), limit(40));
+    const snap = await getDocs(q);
+    fahrtenListe = snap.docs
+      .map((d) => ({ id: d.id, ...d.data() }))
+      .filter((f) => f.standort === standort);
+    renderFahrtList();
+  } catch (err) {
+    fahrtListEl.innerHTML = `<li class="activity-empty">Fahrten konnten nicht geladen werden: ${escapeHtml(err.message)}</li>`;
+  }
+}
+
+function renderFahrtList() {
+  if (manuellerModus) { fahrtListField.classList.add("hidden"); return; }
+  fahrtListField.classList.remove("hidden");
+  if (!fahrtenListe.length) {
+    fahrtListEl.innerHTML = `<li class="activity-empty">Für diesen Standort wurde noch keine Fahrt in der Fahrgastzählapp angelegt.</li>`;
+    return;
+  }
+  fahrtListEl.innerHTML = fahrtenListe.map((f) => {
+    const anzahl = (f.erwachsene || 0) + (f.kinder || 0) + (f.familien || 0) + (f.gruppen || 0);
+    return `<li>
+      <button type="button" class="fahrt-btn ${f.fahrtag === selectedFahrtag ? "active" : ""}" data-fahrtag="${f.fahrtag}">
+        <span>${formatDateDE(f.fahrtag)}</span>
+        <span class="fahrt-sub">${anzahl} Fahrgäste bisher</span>
+      </button>
+    </li>`;
+  }).join("");
+  fahrtListEl.querySelectorAll(".fahrt-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      selectedFahrtag = btn.dataset.fahrtag;
+      renderFahrtList();
+      updateStartButtonState();
+    });
+  });
+}
+
+function updateStartButtonState() {
+  const hasFahrtag = manuellerModus ? !!fahrtagInput.value : !!selectedFahrtag;
+  startBtn.disabled = !(selectedStandort && hasFahrtag);
 }
 
 function showSetupError(msg) { setupError.textContent = msg; }
@@ -243,7 +314,7 @@ function showSetupInfo(msg) { setupInfo.textContent = msg; }
 async function startSession() {
   showSetupError(""); showSetupInfo("");
 
-  const fahrtag = fahrtagInput.value;
+  const fahrtag = manuellerModus ? fahrtagInput.value : selectedFahrtag;
   const kasse = kasseInput.value.trim() || "Kasse";
 
   if (!fahrtag) { showSetupError("Bitte einen Fahrtag wählen."); return; }
@@ -298,6 +369,7 @@ function leaveApp() {
   showSetupError(""); showSetupInfo("");
   fahrtagInput.value = session?.fahrtag || todayISO();
   if (session?.standort) selectStandort(session.standort);
+  if (session?.fahrtag) { selectedFahrtag = session.fahrtag; updateStartButtonState(); }
   kasseInput.value = session?.kasse || "";
 }
 
@@ -600,17 +672,19 @@ kbAuszahlungBtn.addEventListener("click", () => openNumpad("auszahlung", "Auszah
 // ===========================================================
 // VERKAUFSBERICHT
 // ===========================================================
+// ticketBestand/Karte/Gutscheine/Bemerkung werden direkt in Firestore
+// gespeichert (gemeinsam pro Fahrtag/Standort, für alle Kassen sichtbar).
 function subscribeBericht() {
   unsubBericht = onSnapshot(berichtRef, (snap) => {
-    berichtOverrides = snap.exists() ? (snap.data().werte || {}) : {};
-    if (snap.exists()) {
-      const d = snap.data();
-      if (d.kassenbestandIst != null) berichtKassenbestand.value = (d.kassenbestandIst / 100).toFixed(2).replace(".", ",");
-      if (d.bemerkung) berichtBemerkung.value = d.bemerkung;
-      berichtQuelle.textContent = "gespeicherter Bericht, zuletzt aktualisiert";
-    } else {
-      berichtQuelle.textContent = "Vorschlag aus den erfassten Verkäufen – noch nicht gespeichert";
-    }
+    const d = snap.exists() ? snap.data() : {};
+    ticketBestand = d.ticketBestand || {};
+    TICKET_TYPES.forEach((t) => { if (!ticketBestand[t.key]) ticketBestand[t.key] = {}; });
+
+    berichtKarte.value = d.kartenzahlung != null ? (d.kartenzahlung / 100).toFixed(2).replace(".", ",") : "";
+    berichtGutscheinFamilie.value = d.gutscheinFamilie != null ? (d.gutscheinFamilie / 100).toFixed(2).replace(".", ",") : "";
+    berichtGutscheinEinzel.value = d.gutscheinEinzel != null ? (d.gutscheinEinzel / 100).toFixed(2).replace(".", ",") : "";
+    if (d.bemerkung) berichtBemerkung.value = d.bemerkung;
+
     renderBericht();
   }, (err) => showToast("Fehler beim Laden des Berichts: " + err.message));
 }
@@ -631,93 +705,79 @@ function subscribeVerkaeufe() {
   }, (err) => showToast("Fehler beim Laden der Verkäufe: " + err.message));
 }
 
-const BERICHT_KATEGORIEN = TICKET_TYPES.map((t) => ({
-  key: t.key,
-  label: t.label,
-  zaehl: () => (verkaeufeSums[t.key] ? verkaeufeSums[t.key].anzahl : 0),
-  umsatzIst: () => (verkaeufeSums[t.key] ? verkaeufeSums[t.key].umsatz : 0),
-  preis: () => preise[t.key] || 0
-}));
-
-// Ermittelt Anzahl/Umsatz für eine Kategorie: manuelle Überschreibung geht vor,
-// sonst die tatsächlich über "Kauf abschließen" erfassten Verkäufe.
-function berichtWert(k) {
-  const override = berichtOverrides[k.key] || {};
-  const anzahl = override.anzahl != null ? override.anzahl : k.zaehl();
-  const umsatz = override.umsatz != null
-    ? override.umsatz
-    : (override.anzahl != null ? anzahl * k.preis() : k.umsatzIst());
-  return { anzahl, umsatz };
+// Anzahl verkaufter Tickets einer Art = Endstand − Anfangsbestand der fortlaufenden
+// Fahrkartennummern. null, wenn einer der beiden Werte fehlt oder der Endstand
+// kleiner als der Anfangsbestand ist (z. B. weil noch nicht eingetragen).
+function ticketVerkauft(key) {
+  const b = ticketBestand[key] || {};
+  if (b.anfang == null || b.ende == null) return null;
+  const diff = b.ende - b.anfang;
+  return diff >= 0 ? diff : null;
 }
 
 function renderBericht() {
-  let gesamt = 0;
-  berichtBody.innerHTML = BERICHT_KATEGORIEN.map((k) => {
-    const { anzahl, umsatz } = berichtWert(k);
-    gesamt += umsatz;
-    return `<tr data-kat="${k.key}">
-      <td>${k.label}</td>
-      <td><input type="text" class="bericht-anzahl" inputmode="numeric" value="${anzahl}" data-kat="${k.key}"></td>
-      <td>${euro(k.preis())}</td>
-      <td><input type="text" class="bericht-umsatz-input" inputmode="decimal" value="${(umsatz / 100).toFixed(2).replace(".", ",")}" data-kat="${k.key}"></td>
+  let gesamteinnahme = 0;
+  berichtBody.innerHTML = TICKET_TYPES.map((t) => {
+    const b = ticketBestand[t.key] || {};
+    const verkauft = ticketVerkauft(t.key);
+    const preis = preise[t.key] || 0;
+    const umsatz = verkauft != null ? verkauft * preis : 0;
+    gesamteinnahme += umsatz;
+    return `<tr data-key="${t.key}">
+      <td>${t.label}</td>
+      <td><input type="text" class="bericht-anfang" inputmode="numeric" maxlength="4" placeholder="–" value="${b.anfang != null ? b.anfang : ""}" data-key="${t.key}"></td>
+      <td><input type="text" class="bericht-ende" inputmode="numeric" maxlength="4" placeholder="–" value="${b.ende != null ? b.ende : ""}" data-key="${t.key}"></td>
+      <td class="kb-mono">${verkauft != null ? verkauft : "–"}</td>
+      <td>${euro(preis)}</td>
+      <td class="bericht-umsatz kb-mono">${euro(umsatz)}</td>
     </tr>`;
   }).join("");
-  berichtGesamt.textContent = euro(gesamt);
-  updateBerichtDiff(gesamt);
+  berichtGesamt.textContent = euro(gesamteinnahme);
+  berichtSummeEinnahme.textContent = euro(gesamteinnahme);
 
-  berichtBody.querySelectorAll(".bericht-anzahl").forEach((input) => {
-    input.addEventListener("change", () => {
-      const kat = input.dataset.kat;
-      const anzahl = parseInt(input.value, 10) || 0;
-      const katDef = BERICHT_KATEGORIEN.find((k) => k.key === kat);
-      berichtOverrides[kat] = { anzahl, umsatz: anzahl * katDef.preis() };
-      renderBericht();
+  const abzug = toCents(berichtKarte.value) + toCents(berichtGutscheinFamilie.value) + toCents(berichtGutscheinEinzel.value);
+  berichtSummeAbzug.textContent = euro(abzug);
+  const bargeld = gesamteinnahme - abzug;
+  berichtBargeld.textContent = euro(bargeld);
+
+  const appUmsatz = TICKET_TYPES.reduce((sum, t) => sum + (verkaeufeSums[t.key] ? verkaeufeSums[t.key].umsatz : 0), 0);
+  berichtAppUmsatz.textContent = euro(appUmsatz);
+  updateBerichtDiff(bargeld, appUmsatz);
+
+  const attachNumberInput = (selector, feld) => {
+    berichtBody.querySelectorAll(selector).forEach((input) => {
+      input.addEventListener("change", () => {
+        const key = input.dataset.key;
+        const val = input.value.trim() === "" ? null : Math.max(0, parseInt(input.value, 10) || 0);
+        if (!ticketBestand[key]) ticketBestand[key] = {};
+        ticketBestand[key][feld] = val;
+        renderBericht();
+      });
     });
-  });
-  berichtBody.querySelectorAll(".bericht-umsatz-input").forEach((input) => {
-    input.addEventListener("change", () => {
-      const kat = input.dataset.kat;
-      const umsatzCents = toCents(input.value);
-      const prev = berichtOverrides[kat] || {};
-      const anzahl = prev.anzahl != null ? prev.anzahl : BERICHT_KATEGORIEN.find((k) => k.key === kat).zaehl();
-      berichtOverrides[kat] = { anzahl, umsatz: umsatzCents };
-      renderBericht();
-    });
-  });
+  };
+  attachNumberInput(".bericht-anfang", "anfang");
+  attachNumberInput(".bericht-ende", "ende");
 }
 
-function updateBerichtDiff(gesamtCents) {
-  const istCents = berichtKassenbestand.value.trim() ? toCents(berichtKassenbestand.value) : null;
-  if (istCents == null) {
-    berichtDiff.textContent = "–";
-    berichtDiffRow.classList.remove("diff-ok", "diff-bad");
-    return;
-  }
-  const diff = istCents - gesamtCents;
+function updateBerichtDiff(bargeldCents, appUmsatzCents) {
+  const diff = bargeldCents - appUmsatzCents;
   berichtDiff.textContent = (diff >= 0 ? "+" : "") + euro(diff);
   berichtDiffRow.classList.toggle("diff-ok", diff === 0);
   berichtDiffRow.classList.toggle("diff-bad", diff !== 0);
 }
 
-berichtKassenbestand.addEventListener("input", () => {
-  const total = parseFloat(berichtGesamt.textContent.replace(/[^\d,.-]/g, "").replace(",", "."));
-  updateBerichtDiff(Math.round((total || 0) * 100));
-});
-
-berichtZuruecksetzen.addEventListener("click", () => {
-  berichtOverrides = {};
-  renderBericht();
-  showToast("Werte aus den aktuellen Zähldaten neu geladen.");
+[berichtKarte, berichtGutscheinFamilie, berichtGutscheinEinzel].forEach((input) => {
+  input.addEventListener("input", renderBericht);
 });
 
 berichtSpeichern.addEventListener("click", async () => {
   try {
-    const werte = {};
-    BERICHT_KATEGORIEN.forEach((k) => { werte[k.key] = berichtWert(k); });
-    const istCents = berichtKassenbestand.value.trim() ? toCents(berichtKassenbestand.value) : null;
     await setDoc(berichtRef, {
       fahrtag: session.fahrtag, standort: session.standort,
-      werte, kassenbestandIst: istCents,
+      ticketBestand,
+      kartenzahlung: toCents(berichtKarte.value),
+      gutscheinFamilie: toCents(berichtGutscheinFamilie.value),
+      gutscheinEinzel: toCents(berichtGutscheinEinzel.value),
       bemerkung: berichtBemerkung.value.trim(),
       kasse: session.kasse, aktualisiert: serverTimestamp()
     }, { merge: true });
@@ -730,14 +790,18 @@ berichtSpeichern.addEventListener("click", async () => {
 
 berichtCsv.addEventListener("click", async () => {
   const zeilen = [`Verkaufsbericht ${formatDateDE(session.fahrtag)} – ${STANDORT_LABEL[session.standort]}`];
-  BERICHT_KATEGORIEN.forEach((k) => {
-    const row = berichtBody.querySelector(`tr[data-kat="${k.key}"]`);
-    const anzahl = row.querySelector(".bericht-anzahl").value;
-    const umsatz = row.querySelector(".bericht-umsatz-input").value;
-    zeilen.push(`${k.label}: ${anzahl} Stück – ${umsatz} €`);
+  TICKET_TYPES.forEach((t) => {
+    const b = ticketBestand[t.key] || {};
+    const verkauft = ticketVerkauft(t.key);
+    zeilen.push(`${t.label}: ${b.anfang != null ? b.anfang : "–"} → ${b.ende != null ? b.ende : "–"} = ${verkauft != null ? verkauft : "–"} Stück`);
   });
-  zeilen.push(`Gesamt: ${berichtGesamt.textContent}`);
-  if (berichtKassenbestand.value.trim()) zeilen.push(`Gezählter Kassenbestand: ${berichtKassenbestand.value} €`);
+  zeilen.push(`Gesamteinnahme: ${berichtGesamt.textContent}`);
+  zeilen.push(`Kartenzahlung: ${berichtKarte.value || "0,00"} €`);
+  zeilen.push(`Familien-Gutscheine: ${berichtGutscheinFamilie.value || "0,00"} €`);
+  zeilen.push(`Einzelperson-Gutscheine: ${berichtGutscheinEinzel.value || "0,00"} €`);
+  zeilen.push(`Bargeldeinnahmen (erwartet): ${berichtBargeld.textContent}`);
+  zeilen.push(`Verkauft laut Kassenapp: ${berichtAppUmsatz.textContent}`);
+  zeilen.push(`Differenz: ${berichtDiff.textContent}`);
   if (berichtBemerkung.value.trim()) zeilen.push(`Bemerkung: ${berichtBemerkung.value.trim()}`);
   const text = zeilen.join("\n");
   try {
@@ -749,7 +813,7 @@ berichtCsv.addEventListener("click", async () => {
 });
 
 // ---------------------------------------------------------
-// Numpad (Preis / Gegeben / Ein-Auszahlung / Anfangsbestand)
+// Numpad (Gegeben / Ein-Auszahlung)
 // ---------------------------------------------------------
 function openNumpad(mode, title, initialCents, mitGrund) {
   numpadMode = mode;
@@ -808,6 +872,25 @@ window.addEventListener("online", () => setConnStatus(fahrtRef ? "online" : "con
 window.addEventListener("offline", () => setConnStatus("offline"));
 
 // ---------------------------------------------------------
+// Ansicht: Kompakt (Handy) / Ausführlich (PC, Tablet)
+// ---------------------------------------------------------
+const VIEW_LS_KEY = "kb_kasse_kompakt";
+function applyViewMode(compact) {
+  document.body.classList.toggle("compact", compact);
+  viewToggle.setAttribute("aria-pressed", compact ? "true" : "false");
+}
+function initViewToggle() {
+  let compact = localStorage.getItem(VIEW_LS_KEY) === "1";
+  applyViewMode(compact);
+  viewToggle.addEventListener("click", () => {
+    compact = !compact;
+    localStorage.setItem(VIEW_LS_KEY, compact ? "1" : "0");
+    applyViewMode(compact);
+  });
+}
+
+// ---------------------------------------------------------
 // Start
 // ---------------------------------------------------------
 initSetupScreen();
+initViewToggle();

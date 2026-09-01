@@ -190,6 +190,16 @@ input { font-family: var(--font-body); }
 .setup-info { margin-top: 14px; font-size: 0.82rem; color: var(--ok); min-height: 1.2em; }
 .setup-error { margin-top: 8px; font-size: 0.85rem; color: var(--alert); min-height: 1.2em; font-weight: 600; }
 
+.fahrt-list { list-style: none; margin: 0 0 8px; padding: 0; max-height: 220px; overflow-y: auto; }
+.fahrt-btn {
+  width: 100%; display: flex; justify-content: space-between; align-items: center;
+  padding: 11px 14px; margin-bottom: 6px; border-radius: 8px; border: 1px solid var(--paper-dark);
+  background: #fff; font-weight: 600; color: var(--ink); text-align: left;
+}
+.fahrt-btn .fahrt-sub { font-weight: 400; font-size: 0.78rem; color: var(--ink-soft); font-family: var(--font-mono); }
+.fahrt-btn.active { background: var(--forest); border-color: var(--forest); color: #f3ecda; }
+.fahrt-btn.active .fahrt-sub { color: var(--brass-light); }
+
 /* ============================================================
    APP SHELL
    ============================================================ */
@@ -228,6 +238,17 @@ input { font-family: var(--font-body); }
 .conn-connecting { background: rgba(255,255,255,0.12); color: #dcd4b8; }
 .conn-online { background: rgba(60, 107, 71, 0.35); color: #bfe3c8; }
 .conn-offline { background: rgba(168, 58, 44, 0.35); color: #f3c6bf; }
+
+.view-toggle {
+  display: flex; background: rgba(0,0,0,0.25); border-radius: 20px; padding: 3px; gap: 2px;
+}
+.view-toggle-option {
+  padding: 5px 12px; border-radius: 16px; font-size: 0.75rem; font-weight: 600; color: #cfd6c9;
+}
+.view-toggle[aria-pressed="false"] .view-toggle-option[data-mode="ausfuehrlich"],
+.view-toggle[aria-pressed="true"] .view-toggle-option[data-mode="kompakt"] {
+  background: var(--brass); color: #241b0c;
+}
 
 /* ---------- Tab-Leiste ---------- */
 .tabbar {
@@ -405,7 +426,7 @@ input { font-family: var(--font-body); }
 }
 .bericht-table td { padding: 8px 4px; border-bottom: 1px dashed var(--paper-edge); }
 .bericht-table input {
-  width: 84px; padding: 6px 8px; border: 1px solid var(--paper-dark); border-radius: 6px;
+  width: 70px; padding: 6px 8px; border: 1px solid var(--paper-dark); border-radius: 6px;
   font-family: var(--font-mono); text-align: right;
 }
 .bericht-umsatz { font-family: var(--font-mono); font-weight: 600; }
@@ -482,3 +503,19 @@ input { font-family: var(--font-body); }
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; }
 }
+
+/* ============================================================
+   KOMPAKT-MODUS (manueller Umschalter, unabhängig von der Bildschirmbreite)
+   ============================================================ */
+body.compact .rg-grid,
+body.compact .kb-grid { grid-template-columns: 1fr; }
+body.compact .sale-price,
+body.compact .panel-sub,
+body.compact .bericht-table th:nth-child(5),
+body.compact .bericht-table td:nth-child(5) { display: none; }
+body.compact .sale-row { grid-template-columns: 1fr auto; row-gap: 6px; }
+body.compact .sale-subtotal { grid-column: 2; }
+body.compact .topbar-meta { gap: 10px; }
+body.compact .main { padding: 12px; }
+body.compact .panel { padding: 14px; }
+body.compact .bericht-table th, body.compact .bericht-table td { padding: 6px 3px; font-size: 0.85rem; }

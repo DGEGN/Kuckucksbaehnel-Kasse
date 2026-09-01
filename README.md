@@ -32,13 +32,25 @@ der gemeinsamen Liste — jeder abgeschlossene Verkauf erscheint hier
 automatisch als Einzahlung.
 
 ### Verkaufsbericht
-Schlägt Anzahl und Umsatz je Ticketart automatisch aus den über „Kauf
-abschließen" erfassten Verkäufen aller Kassen vor. Jeder Wert lässt sich
-anklicken und überschreiben, z. B. bei einer nachträglichen Korrektur.
-Optional lässt sich der tatsächlich gezählte Kassenbestand eintragen — die
-App zeigt die Differenz zum berechneten Umsatz. „Bericht speichern" sichert
-die Werte in Firestore, „als Text kopieren" erzeugt eine fertige
-Zusammenfassung zum Einfügen in ein Formular oder eine Nachricht.
+Für jede Ticketart trägt man **Anfangsbestand** und **Endstand** der fortlaufenden
+Nummern auf den Fahrkarten ein (gilt gemeinsam für alle Kassen an diesem
+Standort – ein Fahrkartenblock pro Ticketart, nicht pro Kasse). Die App
+berechnet daraus automatisch die verkaufte Anzahl (Endstand − Anfangsbestand),
+den Umsatz je Ticketart und die Gesamteinnahme. In den Feldern „Absatz durch
+Kartenzahlung" sowie „Familien-" und „Einzelperson-Gutscheine" trägt man die
+Beträge ein, die nicht bar eingenommen wurden — die App addiert sie und zieht
+sie von der Gesamteinnahme ab, das Ergebnis sind die erwarteten
+**Bargeldeinnahmen**. Diese werden automatisch mit der Summe verglichen, die
+die Kassenapp selbst über „Kauf abschließen" (alle Kassen) erfasst hat, samt
+Differenz-Anzeige. „Bericht speichern" sichert alles in Firestore, „als Text
+kopieren" erzeugt eine fertige Zusammenfassung.
+
+### Ansicht: Kompakt / Ausführlich
+Oben rechts lässt sich jederzeit zwischen einer **kompakten** Ansicht (ein
+Spalte, reduzierte Zusatzinfos — ideal für kleine Handy-Bildschirme) und der
+**ausführlichen** Ansicht (mehrspaltig, alle Details — ideal für Tablet/PC)
+umschalten. Die Wahl wird im Browser gespeichert und bleibt beim nächsten
+Öffnen erhalten.
 
 ### Preise
 Preise für alle sechs Ticketarten (Einfache Fahrt / Hin- Rückfahrt ×
@@ -49,19 +61,27 @@ Preisänderungen anpassen.
 ## 1. Mit demselben Firebase-Projekt verbinden
 
 Diese App nutzt **dieselbe Firebase-Konfiguration** wie die Fahrgastzählapp,
-damit beide auf dieselbe Datenbank zugreifen (Verkaufsbericht braucht Zugriff
-auf die Zähldaten).
+damit beide auf dieselbe Datenbank zugreifen (Verkauf braucht Zugriff auf die
+Fahrten und schreibt Fahrgastzahlen zurück).
 
 1. In [`app.js`](app.js) ganz oben dieselben `firebaseConfig`-Werte eintragen,
    die auch in der `app.js` der Fahrgastzählapp stehen.
 2. **Sicherheitsregeln aktualisieren**: [`firestore.rules`](firestore.rules)
    enthält die bestehenden Regeln für `fahrten` **plus** drei neue Bereiche
-   (`kassenbuch`, `berichte`, `einstellungen`). In der Firebase-Konsole unter
-   *Firestore Database* → *Regeln* den **gesamten Inhalt dieser Datei**
-   einfügen und veröffentlichen (ersetzt die bisherige Regel-Datei
-   vollständig, enthält aber weiterhin alles für die Fahrgastzählapp).
+   (`kassenbuch`, `berichte`, `verkaeufe`, `einstellungen`). In der
+   Firebase-Konsole unter *Firestore Database* → *Regeln* den **gesamten
+   Inhalt dieser Datei** einfügen und veröffentlichen (ersetzt die bisherige
+   Regel-Datei vollständig, enthält aber weiterhin alles für die
+   Fahrgastzählapp).
 3. Einmal in der App unter dem Tab **„Preise"** die aktuellen Ticketpreise
    eintragen und speichern.
+
+Beim Start wählt man Standort und dann eine der dort bereits in der
+Fahrgastzählapp angelegten Fahrten aus einer Liste — nur so kann die App
+Verkäufe automatisch als Fahrgäste mitzählen. Ist noch keine Fahrt angelegt,
+lässt sich der Fahrtag über „Fahrtag stattdessen manuell eingeben" trotzdem
+frei wählen; die automatische Fahrgastzählung greift dann erst, sobald die
+passende Fahrt in der Fahrgastzählapp existiert.
 
 ## 2. Auf GitHub veröffentlichen (GitHub Pages)
 
@@ -121,15 +141,17 @@ verkaeufe/{fahrtag}_{standort}/eintraege/{id}
 
 berichte/{fahrtag}_{standort}
   fahrtag, standort, kasse
-  werte: {
-    ea: { anzahl: 42, umsatz: 21000 },
-    ra: { anzahl: 12, umsatz:  9600 },
-    ek: { anzahl: 18, umsatz:  5400 },
-    rk: { anzahl:  9, umsatz:  4050 },
-    ef: { anzahl:  6, umsatz:  9000 },
-    rf: { anzahl:  3, umsatz:  6000 }
+  ticketBestand: {
+    ea: { anfang: 1200, ende: 1242 },   (fortlaufende Fahrkartennummern)
+    ra: { anfang:  340, ende:  352 },
+    ek: { anfang:  800, ende:  818 },
+    rk: { anfang:  210, ende:  219 },
+    ef: { anfang:   60, ende:   66 },
+    rf: { anfang:   30, ende:   33 }
   }
-  kassenbestandIst: 55050 | null
+  kartenzahlung: 4500        (Cent)
+  gutscheinFamilie: 1500     (Cent)
+  gutscheinEinzel: 500       (Cent)
   bemerkung: "..."
   aktualisiert: Timestamp
 

@@ -20,11 +20,6 @@
     <p class="setup-sub">Kuckucks-Bähnel</p>
 
     <div class="field">
-      <label for="fahrtag">Fahrtag</label>
-      <input type="date" id="fahrtag" required>
-    </div>
-
-    <div class="field">
       <label>Standort</label>
       <div class="toggle-group" id="standortGroup">
         <button type="button" class="toggle-btn" data-standort="neustadt">Neustadt</button>
@@ -32,12 +27,26 @@
       </div>
     </div>
 
+    <div class="field" id="fahrtListField">
+      <label>Fahrt (aus der Fahrgastzählapp)</label>
+      <ul class="fahrt-list" id="fahrtList">
+        <li class="activity-empty">Bitte zuerst einen Standort wählen.</li>
+      </ul>
+      <button type="button" class="link-btn" id="fahrtManuellBtn">Fahrtag stattdessen manuell eingeben</button>
+    </div>
+
+    <div class="field hidden" id="fahrtagManuellField">
+      <label for="fahrtag">Fahrtag (manuell)</label>
+      <input type="date" id="fahrtag">
+      <p class="rg-hint">Achtung: Ohne passende Fahrt in der Fahrgastzählapp werden verkaufte Tickets nicht automatisch als Fahrgäste gezählt.</p>
+    </div>
+
     <div class="field">
       <label for="kasseInput">Dein Name / deine Kasse <span class="opt">(optional)</span></label>
       <input type="text" id="kasseInput" placeholder="z. B. Schalter 1" maxlength="24" autocomplete="off">
     </div>
 
-    <button id="startBtn" class="btn btn-brass btn-block">Kasse öffnen</button>
+    <button id="startBtn" class="btn btn-brass btn-block" disabled>Kasse öffnen</button>
     <p id="setupInfo" class="setup-info"></p>
     <p id="setupError" class="setup-error"></p>
   </div>
@@ -70,6 +79,11 @@
       </div>
       <button id="changeSession" class="link-btn">Kasse wechseln</button>
     </div>
+
+    <button id="viewToggle" class="view-toggle" type="button" aria-pressed="false">
+      <span class="view-toggle-option" data-mode="ausfuehrlich">Ausführlich</span>
+      <span class="view-toggle-option" data-mode="kompakt">Kompakt</span>
+    </button>
 
     <span id="connStatus" class="conn-status conn-connecting">verbinde…</span>
   </header>
@@ -192,32 +206,68 @@
     <section class="tab-panel" id="tab-bericht">
       <div class="panel">
         <div class="panel-head">
-          <h2>Verkaufsbericht</h2>
-          <span class="panel-sub" id="berichtQuelle">–</span>
+          <h2>Fahrkarten-Bestand</h2>
+          <span class="panel-sub" id="berichtQuelle">gilt gemeinsam für alle Kassen an diesem Standort</span>
         </div>
 
         <table class="bericht-table">
           <thead>
-            <tr><th>Kategorie</th><th>Anzahl</th><th>Preis</th><th>Umsatz</th></tr>
+            <tr><th>Ticketart</th><th>Anfangsbestand</th><th>Endstand</th><th>Verkauft</th><th>Preis</th><th>Umsatz</th></tr>
           </thead>
-          <tbody id="berichtBody">
-            <!-- per JS befüllt -->
-          </tbody>
+          <tbody id="berichtBody"><!-- per JS befüllt --></tbody>
           <tfoot>
             <tr class="bericht-total-row">
-              <td colspan="3">Gesamt</td>
+              <td colspan="5">Gesamteinnahme</td>
               <td id="berichtGesamt" class="kb-mono">0,00&nbsp;€</td>
             </tr>
           </tfoot>
         </table>
+        <p class="rg-hint">Anfangsbestand und Endstand sind die fortlaufenden Nummern auf den Fahrkarten dieser Ticketart. Verkauft = Endstand − Anfangsbestand.</p>
+      </div>
 
-        <div class="bericht-vergleich">
+      <div class="panel">
+        <div class="panel-head"><h2>Zahlungsarten &amp; Gutscheine</h2></div>
+
+        <div class="preise-grid">
           <div class="field">
-            <label for="berichtKassenbestand">Gezählter Kassenbestand (Ist) <span class="opt">(optional)</span></label>
-            <input type="text" id="berichtKassenbestand" inputmode="decimal" placeholder="0,00">
+            <label for="berichtKarte">Absatz durch Kartenzahlung</label>
+            <input type="text" id="berichtKarte" inputmode="decimal" placeholder="0,00">
+          </div>
+          <div class="field">
+            <label for="berichtGutscheinFamilie">Familien-Gutscheine</label>
+            <input type="text" id="berichtGutscheinFamilie" inputmode="decimal" placeholder="0,00">
+          </div>
+          <div class="field">
+            <label for="berichtGutscheinEinzel">Einzelperson-Gutscheine</label>
+            <input type="text" id="berichtGutscheinEinzel" inputmode="decimal" placeholder="0,00">
+          </div>
+        </div>
+
+        <div class="kb-summary">
+          <div class="kb-summary-row">
+            <span>Gesamteinnahme (aus Fahrkarten-Bestand)</span>
+            <span id="berichtSummeEinnahme" class="kb-mono">0,00&nbsp;€</span>
+          </div>
+          <div class="kb-summary-row kb-minus">
+            <span>− Karte, Familien- &amp; Einzelperson-Gutscheine</span>
+            <span id="berichtSummeAbzug" class="kb-mono">0,00&nbsp;€</span>
+          </div>
+          <div class="kb-summary-row kb-total">
+            <span>Bargeldeinnahmen (erwartet)</span>
+            <span id="berichtBargeld" class="kb-mono">0,00&nbsp;€</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head"><h2>Vergleich mit der Kassenapp</h2></div>
+        <div class="bericht-vergleich">
+          <div class="kb-summary-row">
+            <span>Verkauft laut Kassenapp (alle Kassen)</span>
+            <span id="berichtAppUmsatz" class="kb-mono">0,00&nbsp;€</span>
           </div>
           <div class="bericht-diff-row" id="berichtDiffRow">
-            <span>Differenz zum berechneten Umsatz</span>
+            <span>Differenz zu den erwarteten Bargeldeinnahmen</span>
             <span id="berichtDiff" class="kb-mono">–</span>
           </div>
         </div>
@@ -228,7 +278,6 @@
         </div>
 
         <div class="bericht-actions">
-          <button class="btn btn-ghost" id="berichtZuruecksetzen">Werte aus Zähldaten neu laden</button>
           <button class="btn btn-brass" id="berichtSpeichern">Bericht speichern</button>
           <button class="link-btn" id="berichtCsv">als Text kopieren</button>
         </div>
