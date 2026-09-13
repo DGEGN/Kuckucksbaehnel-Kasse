@@ -19,12 +19,13 @@ import {
 // Firebase-Konsole -> Projekteinstellungen -> "Meine Apps" -> Web-App
 // ---------------------------------------------------------
 const firebaseConfig = {
-  apiKey: "DEIN_API_KEY",
-  authDomain: "DEIN_PROJEKT.firebaseapp.com",
-  projectId: "DEIN_PROJEKT",
-  storageBucket: "DEIN_PROJEKT.appspot.com",
-  messagingSenderId: "DEINE_SENDER_ID",
-  appId: "DEINE_APP_ID"
+  apiKey: "AIzaSyCpfHTMh8zx2hmcxjF-ayIjW0lFtJcBtSM",
+  authDomain: "kuckuck-fahrkarten.firebaseapp.com",
+  databaseURL: "https://kuckuck-fahrkarten-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId: "kuckuck-fahrkarten",
+  storageBucket: "kuckuck-fahrkarten.firebasestorage.app",
+  messagingSenderId: "732559401683",
+  appId: "1:732559401683:web:dbfb8ef56c85c73de46a26"
 };
 
 const firebaseApp = initializeApp(firebaseConfig);
