@@ -410,6 +410,35 @@
 
 <div id="toast" class="toast"></div>
 
+<!-- Sichtbare Fehleranzeige, damit JS-Fehler auch ohne Entwicklertools (z. B.
+     auf Tablet/Handy) direkt auf der Seite sichtbar sind. Rein defensiv –
+     zeigt nur an, greift nicht in die App-Logik ein. -->
+<script>
+  (function () {
+    var box = null;
+    function zeigeFehler(text) {
+      if (!box) {
+        box = document.createElement('div');
+        box.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999;'
+          + 'background:#a83a2c;color:#fff;font-family:monospace;font-size:12px;'
+          + 'padding:10px 14px;max-height:40vh;overflow:auto;white-space:pre-wrap;'
+          + 'box-shadow:0 4px 10px rgba(0,0,0,.4);';
+        document.body.appendChild(box);
+      }
+      var line = document.createElement('div');
+      line.style.marginBottom = '6px';
+      line.textContent = text;
+      box.appendChild(line);
+    }
+    window.addEventListener('error', function (e) {
+      zeigeFehler('Skriptfehler: ' + e.message + ' (' + (e.filename || '?') + ':' + e.lineno + ':' + e.colno + ')');
+    });
+    window.addEventListener('unhandledrejection', function (e) {
+      var reason = e.reason && e.reason.message ? e.reason.message : String(e.reason);
+      zeigeFehler('Unbehandelter Fehler: ' + reason);
+    });
+  })();
+</script>
 <script type="module" src="app.js"></script>
 </body>
 </html>
