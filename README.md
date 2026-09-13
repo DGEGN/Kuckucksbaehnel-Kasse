@@ -75,6 +75,14 @@ Spalte, reduzierte Zusatzinfos — ideal für kleine Handy-Bildschirme) und der
 umschalten. Die Wahl wird im Browser gespeichert und bleibt beim nächsten
 Öffnen erhalten.
 
+### Google Sheets
+Über „An Google Sheets senden" im Verkaufsbericht lässt sich der aktuelle
+Bericht per Knopfdruck in ein Google Sheet übertragen: ein eigenes
+Tabellenblatt je Fahrtag (im Stil des Papier-„Verkaufsnachweis für
+Fahrkarten") sowie eine Jahresübersicht mit einer Zeile je Fahrtag. Dafür
+muss einmalig ein Google Apps Script eingerichtet werden — siehe
+[`google-apps-script.gs`](google-apps-script.gs) und Abschnitt 3 unten.
+
 ### Preise
 Preise für alle sechs Ticketarten (Einfache Fahrt / Hin- Rückfahrt ×
 Erwachsene / Kind / Familie) — gelten sofort für alle Kassen und fließen in
@@ -144,6 +152,35 @@ und dort mit `index.html` verlinken.
 *Authentication* → *Settings* → *Authorized domains* in Firebase eingetragen
 sein — ist sie bei der Fahrgastzählapp bereits eingetragen, gilt das auch
 hier, sofern beide Apps dieselbe Domain nutzen.
+
+## 3. Google Sheets einrichten (optional)
+
+Nur nötig, wenn Berichte per Knopfdruck in ein Google Sheet übertragen werden
+sollen ("An Google Sheets senden" im Verkaufsbericht-Tab).
+
+1. Ein neues, leeres Google Sheet anlegen (beliebiger Name).
+2. *Erweiterungen* → *Apps Script* öffnen, den kompletten Inhalt von
+   [`google-apps-script.gs`](google-apps-script.gs) dort einfügen (ersetzt
+   den vorgegebenen `Code.gs`-Inhalt) und speichern.
+3. Oben rechts *Bereitstellen* → *Neue Bereitstellung* → Typ **Web-App**:
+   - Ausführen als: **Ich**
+   - Zugriff: **Jeder** (wichtig — die Kassenapp meldet sich nicht mit
+     einem Google-Konto an, ohne „Jeder" würde jede Anfrage abgelehnt)
+4. Bereitstellen, die nötigen Berechtigungen bestätigen. Die angezeigte
+   Web-App-URL (endet auf `/exec`) kopieren.
+5. Diese URL in `app.js` bei `GOOGLE_SHEETS_WEBHOOK_URL` eintragen.
+6. Nach jeder späteren Änderung am Skript: erneut *Bereitstellen* →
+   *Bereitstellungen verwalten* → Version erhöhen → *Bereitstellen* (die
+   URL bleibt dabei unverändert, sonst müsste sie in `app.js` angepasst
+   werden).
+
+Das Skript legt automatisch ein Tabellenblatt je Fahrtag an (Name = Fahrtag,
+z. B. `2026-09-01`) sowie ein Blatt „Jahresübersicht 2026" mit einer Zeile
+je Fahrtag — beim erneuten Senden desselben Tages wird die vorhandene Zeile
+aktualisiert statt eine zweite anzulegen. Die konkrete Vorlage in
+`google-apps-script.gs` ist ein erster Entwurf zum Testen — Layout, Spalten
+oder Formatierung gerne anpassen lassen, sobald ihr wisst, wie es aussehen
+soll.
 
 ## Logo
 

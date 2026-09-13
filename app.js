@@ -27,6 +27,10 @@ const firebaseConfig = {
   messagingSenderId: "732559401683",
   appId: "1:732559401683:web:dbfb8ef56c85c73de46a26"
 };
+// TODO: Web-App-URL des Google Apps Script (endet auf "/exec"), siehe
+// google-apps-script.gs für Code + Einrichtung. Leer lassen/Platzhalter
+// stehen lassen, um die Google-Sheets-Übertragung vorerst zu deaktivieren.
+const GOOGLE_SHEETS_WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbxCcl_HOSmDsKFRPWv6T2H2KNoYQ3N0z8EE2hI58OzYCb5ipMTTXWgxGil8RyazrWCZ/exec";
 
 const firebaseApp = initializeApp(firebaseConfig);
 const db = getFirestore(firebaseApp);
@@ -82,8 +86,8 @@ const KASSEN_STUECKELUNG = [
 // Fahrgäste mitzählt.
 const TICKET_TYPES = [
   { key: "ea", label: "Einfache Fahrt Erwachsene", kategorie: "einzelperson", personen: 1 },
-  { key: "ek", label: "Einfache Fahrt Kind", kategorie: "einzelperson", personen: 1 },
   { key: "ra", label: "Hin- Rückfahrt Erwachsene", kategorie: "einzelperson", personen: 1 },
+  { key: "ek", label: "Einfache Fahrt Kind", kategorie: "einzelperson", personen: 1 },
   { key: "rk", label: "Hin- Rückfahrt Kind", kategorie: "einzelperson", personen: 1 },
   { key: "ef", label: "Einfache Fahrt Familie", kategorie: "familien", personen: 4 },
   { key: "rf", label: "Hin- Rückfahrt Familie", kategorie: "familien", personen: 4 }
@@ -209,6 +213,7 @@ const berichtDiffRow = el("berichtDiffRow");
 const berichtDiff = el("berichtDiff");
 const berichtBemerkung = el("berichtBemerkung");
 const berichtSpeichern = el("berichtSpeichern");
+const berichtSheetsBtn = el("berichtSheetsBtn");
 const berichtCsv = el("berichtCsv");
 const berichtHinweis = el("berichtHinweis");
 
@@ -957,6 +962,70 @@ berichtSpeichern.addEventListener("click", async () => {
     setTimeout(() => { berichtHinweis.textContent = ""; }, 4000);
   } catch (err) {
     berichtHinweis.textContent = "Fehler: " + err.message;
+  }
+});
+
+// Baut denselben Bericht, den auch die Anzeige/der Text-Export nutzt, als
+// reines Datenobjekt für die Übertragung an Google Sheets.
+function buildBerichtPayload() {
+  const zeilen = TICKET_TYPES.map((t) => {
+    const b = ticketBestand[t.key] || {};
+    const verkauft = ticketVerkauft(t.key);
+    const preis = preise[t.key] || 0;
+    const umsatz = verkauft != null ? verkauft * preis : 0;
+    return { label: t.label, anfang: b.anfang ?? null, ende: b.ende ?? null, verkauft, preis, umsatz };
+  });
+  const gruppenEinnahme = toCents(berichtGruppen.value);
+  const gesamteinnahme = zeilen.reduce((s, z) => s + (z.umsatz || 0), 0) + gruppenEinnahme;
+
+  const gutscheinFamilieAnzahl = Math.max(0, parseInt(berichtGutscheinFamilie.value, 10) || 0);
+  const gutscheinFamilieBetrag = gutscheinFamilieAnzahl * (preise.rf || 0);
+  const gutscheinEinzelAnzahl = Math.max(0, parseInt(berichtGutscheinEinzel.value, 10) || 0);
+  const gutscheinEinzelBetrag = gutscheinEinzelAnzahl * (preise.ra || 0);
+
+  const kartenzahlung = toCents(berichtKarte.value);
+  const summeAbzug = kartenzahlung + gutscheinFamilieBetrag + gutscheinEinzelBetrag;
+  const bargeldEinnahmen = gesamteinnahme - summeAbzug;
+  const appUmsatz = TICKET_TYPES.reduce((sum, t) => sum + (verkaeufeSums[t.key] ? verkaeufeSums[t.key].umsatz : 0), 0);
+  const differenz = bargeldEinnahmen - appUmsatz;
+
+  return {
+    fahrtag: session.fahrtag, kasse: session.kasse,
+    zeilen, gruppenEinnahme, gesamteinnahme,
+    kartenzahlung,
+    gutscheinFamilie: { anzahl: gutscheinFamilieAnzahl, betrag: gutscheinFamilieBetrag },
+    gutscheinEinzel: { anzahl: gutscheinEinzelAnzahl, betrag: gutscheinEinzelBetrag },
+    summeAbzug, bargeldEinnahmen, appUmsatz, differenz,
+    bemerkung: berichtBemerkung.value.trim()
+  };
+}
+
+berichtSheetsBtn.addEventListener("click", async () => {
+  if (!GOOGLE_SHEETS_WEBHOOK_URL || GOOGLE_SHEETS_WEBHOOK_URL.indexOf("DEINE_") === 0) {
+    berichtHinweis.textContent = "Bitte zuerst GOOGLE_SHEETS_WEBHOOK_URL in app.js eintragen (siehe google-apps-script.gs).";
+    return;
+  }
+  berichtSheetsBtn.disabled = true;
+  const alterText = berichtSheetsBtn.textContent;
+  berichtSheetsBtn.textContent = "Sende…";
+  try {
+    const payload = buildBerichtPayload();
+    const res = await fetch(GOOGLE_SHEETS_WEBHOOK_URL, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" }, // vermeidet CORS-Preflight bei Apps Script
+      body: JSON.stringify(payload)
+    });
+    let ok = res.ok;
+    try { const data = await res.json(); ok = ok && data.ok !== false; } catch (e) { /* Antwort evtl. nicht lesbar, aber ggf. trotzdem angekommen */ }
+    berichtHinweis.textContent = ok
+      ? "An Google Sheets gesendet."
+      : "Google Sheets meldete einen Fehler – bitte im Sheet nachsehen.";
+    setTimeout(() => { berichtHinweis.textContent = ""; }, 4000);
+  } catch (err) {
+    berichtHinweis.textContent = "Senden an Google Sheets fehlgeschlagen: " + err.message;
+  } finally {
+    berichtSheetsBtn.disabled = false;
+    berichtSheetsBtn.textContent = alterText;
   }
 });
 
