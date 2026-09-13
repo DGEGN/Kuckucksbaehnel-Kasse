@@ -182,7 +182,9 @@
             <div class="kb-anfangsbestand-row">
               <input type="text" id="anfangsbestandInput" inputmode="decimal" placeholder="0,00">
               <button class="btn btn-ghost btn-small" id="anfangsbestandSpeichern">Speichern</button>
+              <button class="btn btn-ghost btn-small" id="anfangsbestandStueckelnToggle">Stückeln</button>
             </div>
+            <div class="stueckelungs-grid hidden" id="anfangsbestandStueckelungGrid"></div>
           </div>
 
           <div class="kb-summary">
@@ -220,6 +222,30 @@
           </ul>
         </div>
 
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <h2>Kassenbestand nachher (gezählt)</h2>
+          <span class="panel-sub">Stückelung am Ende des Verkaufstages</span>
+        </div>
+        <div class="stueckelungs-grid" id="endbestandStueckelungGrid"></div>
+        <div class="kb-summary">
+          <div class="kb-summary-row kb-total">
+            <span>Gezählter Endbestand</span>
+            <span id="endbestandGezaehltSumme" class="kb-mono">0,00&nbsp;€</span>
+          </div>
+          <div class="kb-summary-row">
+            <span>Kassenbestand (Soll)</span>
+            <span id="endbestandSoll" class="kb-mono">0,00&nbsp;€</span>
+          </div>
+          <div class="bericht-diff-row" id="endbestandDiffRow">
+            <span>Differenz</span>
+            <span id="endbestandDiff" class="kb-mono">–</span>
+          </div>
+        </div>
+        <button class="btn btn-brass" id="endbestandSpeichern">Gezählten Endbestand speichern</button>
+        <p class="rg-hint" id="endbestandHinweis"></p>
       </div>
     </section>
 

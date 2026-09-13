@@ -34,9 +34,14 @@ abschließen" wird der Verkauf gebucht:
   nicht aktualisiert wurden.
 
 ### Kassenbuch
-Anfangsbestand einmal pro Fahrtag eintragen. Danach einfach „+ Einzahlung" /
-„− Auszahlung" mit Betrag und Grund erfassen (z. B. Wechselgeld geholt,
-Trinkgeld, Materialkauf). Die App summiert automatisch:
+Anfangsbestand einmal pro Fahrtag eintragen — entweder direkt als Betrag,
+oder über „Stückeln": Anzahl der Scheine (100/50/20/10/5 €) und Münzen
+(2/1 €, 50/20/10/5 Ct) eintragen, die App summiert automatisch. Am Ende des
+Verkaufstages trägt man im Abschnitt „Kassenbestand nachher (gezählt)" auf
+dieselbe Art die tatsächlich gezählten Scheine/Münzen ein — die App zeigt
+sofort die Differenz zum berechneten „Kassenbestand (Soll)" an. Zusätzlich
+„+ Einzahlung" / „− Auszahlung" mit Betrag und Grund erfassen (z. B.
+Wechselgeld geholt, Trinkgeld, Materialkauf). Die App summiert automatisch:
 **Anfangsbestand + Einzahlungen − Auszahlungen = Kassenbestand (Soll)**.
 Alle Buchungen aller Kassen desselben Fahrtags erscheinen live in der
 gemeinsamen Liste — jeder abgeschlossene Verkauf erscheint hier automatisch
@@ -149,6 +154,9 @@ aus, ohne Fehler anzuzeigen.
 kassenbuch/{fahrtag}                     z. B. kassenbuch/2026-09-01
   fahrtag
   anfangsbestand: 5000        (Cent, hier 50,00 €)
+  anfangsbestandStueckelung: { "5000": 1, "1000": 0, ... }  (Cent-Wert -> Anzahl)
+  endbestandStueckelung: { "5000": 3, "2000": 5, ... }
+  endbestandGezaehlt: 51000   (Cent, Summe aus endbestandStueckelung)
   erstellt / aktualisiert: Timestamp
 
 kassenbuch/{fahrtag}/buchungen/{id}

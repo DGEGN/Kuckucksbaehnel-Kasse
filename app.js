@@ -19,13 +19,12 @@ import {
 // Firebase-Konsole -> Projekteinstellungen -> "Meine Apps" -> Web-App
 // ---------------------------------------------------------
 const firebaseConfig = {
-  apiKey: "AIzaSyCpfHTMh8zx2hmcxjF-ayIjW0lFtJcBtSM",
-  authDomain: "kuckuck-fahrkarten.firebaseapp.com",
-  databaseURL: "https://kuckuck-fahrkarten-default-rtdb.europe-west1.firebasedatabase.app",
-  projectId: "kuckuck-fahrkarten",
-  storageBucket: "kuckuck-fahrkarten.firebasestorage.app",
-  messagingSenderId: "732559401683",
-  appId: "1:732559401683:web:dbfb8ef56c85c73de46a26"
+  apiKey: "DEIN_API_KEY",
+  authDomain: "DEIN_PROJEKT.firebaseapp.com",
+  projectId: "DEIN_PROJEKT",
+  storageBucket: "DEIN_PROJEKT.appspot.com",
+  messagingSenderId: "DEINE_SENDER_ID",
+  appId: "DEINE_APP_ID"
 };
 
 const firebaseApp = initializeApp(firebaseConfig);
@@ -60,6 +59,21 @@ const MUENZEN = [
   { wert: 0.01, label: "1 Cent" }
 ];
 
+// Stückelung für den Kassenbestand-Zähler (Anfangs-/Endbestand) – bewusst nur
+// die vom Nutzer genannten Werte, nicht die volle Rückgeld-Stückelung.
+const KASSEN_STUECKELUNG = [
+  { cents: 10000, label: "100 €" },
+  { cents: 5000, label: "50 €" },
+  { cents: 2000, label: "20 €" },
+  { cents: 1000, label: "10 €" },
+  { cents: 500, label: "5 €" },
+  { cents: 200, label: "2 €" },
+  { cents: 100, label: "1 €" },
+  { cents: 50, label: "50 Ct" },
+  { cents: 20, label: "20 Ct" },
+  { cents: 10, label: "10 Ct" },
+  { cents: 5, label: "5 Ct" }
+];
 // Fahrkartenarten. "kategorie" ordnet einer Ticketart die Fahrgast-Zählkategorie
 // der Fahrgastzählapp zu (einzelperson / familien). "personen" gibt an, wie
 // viele Fahrgäste EIN verkauftes Ticket dieser Art zählt (ein Familienticket
@@ -159,6 +173,8 @@ const stueckelungList = el("stueckelungList");
 // Kassenbuch
 const anfangsbestandInput = el("anfangsbestandInput");
 const anfangsbestandSpeichern = el("anfangsbestandSpeichern");
+const anfangsbestandStueckelnToggle = el("anfangsbestandStueckelnToggle");
+const anfangsbestandStueckelungGrid = el("anfangsbestandStueckelungGrid");
 const kbAnfang = el("kbAnfang");
 const kbEin = el("kbEin");
 const kbAus = el("kbAus");
@@ -166,6 +182,13 @@ const kbTotal = el("kbTotal");
 const kbEinzahlungBtn = el("kbEinzahlungBtn");
 const kbAuszahlungBtn = el("kbAuszahlungBtn");
 const kbList = el("kbList");
+const endbestandStueckelungGrid = el("endbestandStueckelungGrid");
+const endbestandGezaehltSumme = el("endbestandGezaehltSumme");
+const endbestandSoll = el("endbestandSoll");
+const endbestandDiffRow = el("endbestandDiffRow");
+const endbestandDiff = el("endbestandDiff");
+const endbestandSpeichern = el("endbestandSpeichern");
+const endbestandHinweis = el("endbestandHinweis");
 
 // Verkaufsbericht
 const berichtQuelle = el("berichtQuelle");
@@ -223,6 +246,8 @@ let verkaeufeSums = {}; // Ticketart-Schlüssel -> { anzahl, umsatz(Cent) }, aus
 let ticketBestand = {}; // Ticketart-Schlüssel -> { anfang, ende } (fortlaufende Fahrkartennummern, gemeinsam pro Fahrtag)
 let kassenbuchAnfangCents = 0;
 let buchungenListe = [];
+let anfangsbestandCounts = {}; // { "<cents>": Anzahl } – Stückelung des Anfangsbestands
+let endbestandCounts = {}; // { "<cents>": Anzahl } – Stückelung des gezählten Endbestands
 
 let saleQty = {}; // Ticketart-Schlüssel -> Anzahl im aktuellen (noch nicht abgeschlossenen) Verkauf
 let rgGegebenCents = 0;
@@ -653,16 +678,63 @@ function subscribeFahrt() {
   });
 }
 
+// ---------------------------------------------------------
+// Stückelungsrechner (für Anfangsbestand und gezählten Endbestand)
+// ---------------------------------------------------------
+function stueckelungSumme(counts) {
+  return KASSEN_STUECKELUNG.reduce((sum, d) => sum + (counts[String(d.cents)] || 0) * d.cents, 0);
+}
+
+function renderStueckelungsGrid(gridEl, counts, onChange) {
+  gridEl.innerHTML = KASSEN_STUECKELUNG.map((d) => {
+    const anzahl = counts[String(d.cents)] || 0;
+    return `<div class="stueck-eingabe">
+      <label>${d.label}</label>
+      <input type="text" inputmode="numeric" data-cents="${d.cents}" value="${anzahl || ""}" placeholder="0">
+      <span class="stueck-sub">${euro(anzahl * d.cents)}</span>
+    </div>`;
+  }).join("");
+  gridEl.querySelectorAll("input").forEach((input) => {
+    input.addEventListener("change", () => {
+      const cents = input.dataset.cents;
+      const anzahl = Math.max(0, parseInt(input.value, 10) || 0);
+      counts[cents] = anzahl;
+      renderStueckelungsGrid(gridEl, counts, onChange);
+      onChange(counts);
+    });
+  });
+}
+
+function onAnfangsbestandStueckChange(counts) {
+  const summe = stueckelungSumme(counts);
+  anfangsbestandInput.value = (summe / 100).toFixed(2).replace(".", ",");
+}
+
+function onEndbestandStueckChange(counts) {
+  renderKassenbuch();
+}
+
+anfangsbestandStueckelnToggle.addEventListener("click", () => {
+  anfangsbestandStueckelungGrid.classList.toggle("hidden");
+});
+anfangsbestandInput.addEventListener("input", () => { anfangsbestandCounts = {}; });
+
 function subscribeKassenbuch() {
   unsubKassenbuch = onSnapshot(kassenbuchRef, (snap) => {
     if (snap.exists()) {
       const d = snap.data();
       kassenbuchAnfangCents = d.anfangsbestand || 0;
       anfangsbestandInput.value = (kassenbuchAnfangCents / 100).toFixed(2).replace(".", ",");
+      anfangsbestandCounts = d.anfangsbestandStueckelung || {};
+      endbestandCounts = d.endbestandStueckelung || {};
     } else {
       kassenbuchAnfangCents = 0;
       anfangsbestandInput.value = "";
+      anfangsbestandCounts = {};
+      endbestandCounts = {};
     }
+    renderStueckelungsGrid(anfangsbestandStueckelungGrid, anfangsbestandCounts, onAnfangsbestandStueckChange);
+    renderStueckelungsGrid(endbestandStueckelungGrid, endbestandCounts, onEndbestandStueckChange);
     renderKassenbuch();
   }, (err) => showToast("Fehler beim Laden des Kassenbuchs: " + err.message));
 }
@@ -684,6 +756,14 @@ function renderKassenbuch() {
   kbEin.textContent = "+ " + euro(einSumme);
   kbAus.textContent = "− " + euro(ausSumme);
   kbTotal.textContent = euro(gesamt);
+
+  const endSumme = stueckelungSumme(endbestandCounts);
+  endbestandGezaehltSumme.textContent = euro(endSumme);
+  endbestandSoll.textContent = euro(gesamt);
+  const diff = endSumme - gesamt;
+  endbestandDiff.textContent = (diff >= 0 ? "+" : "") + euro(diff);
+  endbestandDiffRow.classList.toggle("diff-ok", diff === 0);
+  endbestandDiffRow.classList.toggle("diff-bad", diff !== 0);
 }
 
 function renderKbListe() {
@@ -722,11 +802,27 @@ anfangsbestandSpeichern.addEventListener("click", async () => {
   try {
     await setDoc(kassenbuchRef, {
       fahrtag: session.fahrtag,
-      anfangsbestand: cents, aktualisiert: serverTimestamp()
+      anfangsbestand: cents, anfangsbestandStueckelung: anfangsbestandCounts,
+      aktualisiert: serverTimestamp()
     }, { merge: true });
     showToast("Anfangsbestand gespeichert: " + euro(cents));
   } catch (err) {
     showToast("Fehler: " + err.message);
+  }
+});
+
+endbestandSpeichern.addEventListener("click", async () => {
+  const summe = stueckelungSumme(endbestandCounts);
+  try {
+    await setDoc(kassenbuchRef, {
+      fahrtag: session.fahrtag,
+      endbestandStueckelung: endbestandCounts, endbestandGezaehlt: summe,
+      aktualisiert: serverTimestamp()
+    }, { merge: true });
+    endbestandHinweis.textContent = "Gezählter Endbestand gespeichert: " + euro(summe);
+    setTimeout(() => { endbestandHinweis.textContent = ""; }, 4000);
+  } catch (err) {
+    endbestandHinweis.textContent = "Fehler: " + err.message;
   }
 });
 
