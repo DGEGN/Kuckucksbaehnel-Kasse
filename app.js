@@ -82,8 +82,8 @@ const KASSEN_STUECKELUNG = [
 // Fahrgäste mitzählt.
 const TICKET_TYPES = [
   { key: "ea", label: "Einfache Fahrt Erwachsene", kategorie: "einzelperson", personen: 1 },
-  { key: "ra", label: "Hin- Rückfahrt Erwachsene", kategorie: "einzelperson", personen: 1 },
   { key: "ek", label: "Einfache Fahrt Kind", kategorie: "einzelperson", personen: 1 },
+  { key: "ra", label: "Hin- Rückfahrt Erwachsene", kategorie: "einzelperson", personen: 1 },
   { key: "rk", label: "Hin- Rückfahrt Kind", kategorie: "einzelperson", personen: 1 },
   { key: "ef", label: "Einfache Fahrt Familie", kategorie: "familien", personen: 4 },
   { key: "rf", label: "Hin- Rückfahrt Familie", kategorie: "familien", personen: 4 }
