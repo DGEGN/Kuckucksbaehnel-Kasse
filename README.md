@@ -52,7 +52,10 @@ Für jede Ticketart trägt man **Anfangsbestand** und **Endstand** der
 fortlaufenden Nummern auf den Fahrkarten ein (gilt gemeinsam für alle Kassen
 an diesem Fahrtag — ein Fahrkartenblock pro Ticketart). Die App berechnet
 daraus automatisch die verkaufte Anzahl (Endstand − Anfangsbestand), den
-Umsatz je Ticketart und die Gesamteinnahme. Im Feld „Absatz durch
+Umsatz je Ticketart und die Gesamteinnahme. Für Gruppenverkäufe (laufen nicht
+über die Ticket-Auswahl, sondern werden nur in der Fahrgastzählapp gezählt)
+gibt es eine eigene freie Betragszeile „Gruppen in Neustadt", die ebenfalls
+in die Gesamteinnahme einfließt. Im Feld „Absatz durch
 Kartenzahlung" trägt man den Betrag ein. Bei „Familien-" und
 „Einzelperson-Gutscheinen" trägt man nur die **Anzahl** ein — ein
 Familien-Gutschein zählt fest zum Preis einer Hin- Rückfahrt Familie, ein
@@ -185,6 +188,7 @@ berichte/{fahrtag}
     rf: { anfang:   30, ende:   33 }
   }
   kartenzahlung: 4500        (Cent)
+  gruppenEinnahme: 8000      (Cent, frei eingetragen – "Gruppen in Neustadt")
   gutscheinFamilieAnzahl: 3  (Stück, à aktuellem Preis Hin- Rückfahrt Familie)
   gutscheinEinzelAnzahl: 2   (Stück, à aktuellem Preis Hin- Rückfahrt Erwachsene)
   bemerkung: "..."

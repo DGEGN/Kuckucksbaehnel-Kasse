@@ -19,13 +19,12 @@ import {
 // Firebase-Konsole -> Projekteinstellungen -> "Meine Apps" -> Web-App
 // ---------------------------------------------------------
 const firebaseConfig = {
-  apiKey: "AIzaSyCpfHTMh8zx2hmcxjF-ayIjW0lFtJcBtSM",
-  authDomain: "kuckuck-fahrkarten.firebaseapp.com",
-  databaseURL: "https://kuckuck-fahrkarten-default-rtdb.europe-west1.firebasedatabase.app",
-  projectId: "kuckuck-fahrkarten",
-  storageBucket: "kuckuck-fahrkarten.firebasestorage.app",
-  messagingSenderId: "732559401683",
-  appId: "1:732559401683:web:dbfb8ef56c85c73de46a26"
+  apiKey: "DEIN_API_KEY",
+  authDomain: "DEIN_PROJEKT.firebaseapp.com",
+  projectId: "DEIN_PROJEKT",
+  storageBucket: "DEIN_PROJEKT.appspot.com",
+  messagingSenderId: "DEINE_SENDER_ID",
+  appId: "DEINE_APP_ID"
 };
 
 const firebaseApp = initializeApp(firebaseConfig);
@@ -194,6 +193,7 @@ const endbestandHinweis = el("endbestandHinweis");
 // Verkaufsbericht
 const berichtQuelle = el("berichtQuelle");
 const berichtBody = el("berichtBody");
+const berichtGruppen = el("berichtGruppen");
 const berichtGesamt = el("berichtGesamt");
 const berichtKarte = el("berichtKarte");
 const berichtGutscheinFamilie = el("berichtGutscheinFamilie");
@@ -842,6 +842,7 @@ function subscribeBericht() {
     TICKET_TYPES.forEach((t) => { if (!ticketBestand[t.key]) ticketBestand[t.key] = {}; });
 
     berichtKarte.value = d.kartenzahlung != null ? (d.kartenzahlung / 100).toFixed(2).replace(".", ",") : "";
+    berichtGruppen.value = d.gruppenEinnahme != null ? (d.gruppenEinnahme / 100).toFixed(2).replace(".", ",") : "";
     berichtGutscheinFamilie.value = d.gutscheinFamilieAnzahl != null ? d.gutscheinFamilieAnzahl : "";
     berichtGutscheinEinzel.value = d.gutscheinEinzelAnzahl != null ? d.gutscheinEinzelAnzahl : "";
     if (d.bemerkung) berichtBemerkung.value = d.bemerkung;
@@ -893,6 +894,7 @@ function renderBericht() {
       <td class="bericht-umsatz kb-mono">${euro(umsatz)}</td>
     </tr>`;
   }).join("");
+  gesamteinnahme += toCents(berichtGruppen.value);
   berichtGesamt.textContent = euro(gesamteinnahme);
   berichtSummeEinnahme.textContent = euro(gesamteinnahme);
 
@@ -934,7 +936,7 @@ function updateBerichtDiff(bargeldCents, appUmsatzCents) {
   berichtDiffRow.classList.toggle("diff-bad", diff !== 0);
 }
 
-[berichtKarte, berichtGutscheinFamilie, berichtGutscheinEinzel].forEach((input) => {
+[berichtKarte, berichtGruppen, berichtGutscheinFamilie, berichtGutscheinEinzel].forEach((input) => {
   input.addEventListener("input", renderBericht);
 });
 
@@ -944,6 +946,7 @@ berichtSpeichern.addEventListener("click", async () => {
       fahrtag: session.fahrtag,
       ticketBestand,
       kartenzahlung: toCents(berichtKarte.value),
+      gruppenEinnahme: toCents(berichtGruppen.value),
       gutscheinFamilieAnzahl: Math.max(0, parseInt(berichtGutscheinFamilie.value, 10) || 0),
       gutscheinEinzelAnzahl: Math.max(0, parseInt(berichtGutscheinEinzel.value, 10) || 0),
       bemerkung: berichtBemerkung.value.trim(),
@@ -963,6 +966,7 @@ berichtCsv.addEventListener("click", async () => {
     const verkauft = ticketVerkauft(t.key);
     zeilen.push(`${t.label}: ${b.anfang != null ? b.anfang : "–"} → ${b.ende != null ? b.ende : "–"} = ${verkauft != null ? verkauft : "–"} Stück`);
   });
+  zeilen.push(`Gruppen in Neustadt: ${berichtGruppen.value || "0,00"} €`);
   zeilen.push(`Gesamteinnahme: ${berichtGesamt.textContent}`);
   zeilen.push(`Kartenzahlung: ${berichtKarte.value || "0,00"} €`);
   zeilen.push(`Familien-Gutscheine: ${berichtGutscheinFamilie.value || "0"} Stück (${berichtGutscheinFamilieBetrag.textContent})`);

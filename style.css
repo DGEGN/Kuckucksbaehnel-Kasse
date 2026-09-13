@@ -416,6 +416,24 @@ input { font-family: var(--font-body); }
 
 .kb-buttons { display: flex; gap: 10px; flex-wrap: wrap; }
 
+/* ---------- Stückelungsrechner (Kassenbestand vorher/nachher) ---------- */
+.stueckelungs-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+  gap: 8px;
+  margin: 12px 0 16px;
+}
+.stueck-eingabe {
+  display: flex; flex-direction: column; gap: 4px;
+  background: var(--paper-edge); border-radius: 8px; padding: 8px 10px;
+}
+.stueck-eingabe label { font-size: 0.74rem; font-weight: 600; color: var(--ink-soft); }
+.stueck-eingabe input {
+  width: 100%; padding: 6px 8px; border: 1px solid var(--paper-dark); border-radius: 6px;
+  font-family: var(--font-mono); text-align: right; font-size: 0.95rem;
+}
+.stueck-eingabe .stueck-sub { font-size: 0.72rem; font-family: var(--font-mono); color: var(--ink-soft); text-align: right; }
+
 /* ============================================================
    VERKAUFSBERICHT
    ============================================================ */
