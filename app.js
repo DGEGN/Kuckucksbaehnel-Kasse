@@ -19,18 +19,18 @@ import {
 // Firebase-Konsole -> Projekteinstellungen -> "Meine Apps" -> Web-App
 // ---------------------------------------------------------
 const firebaseConfig = {
-  apiKey: "AIzaSyCpfHTMh8zx2hmcxjF-ayIjW0lFtJcBtSM",
-  authDomain: "kuckuck-fahrkarten.firebaseapp.com",
-  databaseURL: "https://kuckuck-fahrkarten-default-rtdb.europe-west1.firebasedatabase.app",
-  projectId: "kuckuck-fahrkarten",
-  storageBucket: "kuckuck-fahrkarten.firebasestorage.app",
-  messagingSenderId: "732559401683",
-  appId: "1:732559401683:web:dbfb8ef56c85c73de46a26"
+  apiKey: "DEIN_API_KEY",
+  authDomain: "DEIN_PROJEKT.firebaseapp.com",
+  projectId: "DEIN_PROJEKT",
+  storageBucket: "DEIN_PROJEKT.appspot.com",
+  messagingSenderId: "DEINE_SENDER_ID",
+  appId: "DEINE_APP_ID"
 };
+
 // TODO: Web-App-URL des Google Apps Script (endet auf "/exec"), siehe
 // google-apps-script.gs für Code + Einrichtung. Leer lassen/Platzhalter
 // stehen lassen, um die Google-Sheets-Übertragung vorerst zu deaktivieren.
-const GOOGLE_SHEETS_WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbxCcl_HOSmDsKFRPWv6T2H2KNoYQ3N0z8EE2hI58OzYCb5ipMTTXWgxGil8RyazrWCZ/exec";
+const GOOGLE_SHEETS_WEBHOOK_URL = "DEINE_APPS_SCRIPT_WEB_APP_URL";
 
 const firebaseApp = initializeApp(firebaseConfig);
 const db = getFirestore(firebaseApp);
@@ -149,6 +149,7 @@ const fahrtagManuellField = el("fahrtagManuellField");
 const fahrtManuellBtn = el("fahrtManuellBtn");
 const fahrtListField = el("fahrtListField");
 const fahrtListEl = el("fahrtList");
+const rolleGroup = el("rolleGroup");
 const kasseInput = el("kasseInput");
 const startBtn = el("startBtn");
 const setupInfo = el("setupInfo");
@@ -161,6 +162,11 @@ const connStatus = el("connStatus");
 const viewToggle = el("viewToggle");
 
 const tabbar = el("tabbar");
+const zahlweiseField = el("zahlweiseField");
+const zahlweiseGroup = el("zahlweiseGroup");
+const barBereich = el("barBereich");
+const karteBereich = el("karteBereich");
+const karteBetragValue = el("karteBetragValue");
 
 // Verkauf
 const saleListEl = el("saleList");
@@ -175,6 +181,14 @@ const rgVerbuchen = el("rgVerbuchen");
 const rgVerbuchenHint = el("rgVerbuchenHint");
 const stueckelungList = el("stueckelungList");
 
+// Kartenzahlung (eigenes Gerät)
+const karteEingabeBtn = el("karteEingabeBtn");
+const karteSchnellwahl = el("karteSchnellwahl");
+const karteErfassenBtn = el("karteErfassenBtn");
+const karteHinweis = el("karteHinweis");
+const karteSumme = el("karteSumme");
+const karteList = el("karteList");
+
 // Kassenbuch
 const anfangsbestandInput = el("anfangsbestandInput");
 const anfangsbestandSpeichern = el("anfangsbestandSpeichern");
@@ -184,6 +198,7 @@ const kbAnfang = el("kbAnfang");
 const kbEin = el("kbEin");
 const kbAus = el("kbAus");
 const kbTotal = el("kbTotal");
+const kbKarteSumme = el("kbKarteSumme");
 const kbEinzahlungBtn = el("kbEinzahlungBtn");
 const kbAuszahlungBtn = el("kbAuszahlungBtn");
 const kbList = el("kbList");
@@ -237,11 +252,17 @@ const numpadCancel = el("numpadCancel");
 
 const toastEl = el("toast");
 
+const kapazitaetOverlay = el("kapazitaetOverlay");
+const kapazitaetText = el("kapazitaetText");
+const kapazitaetAbbrechen = el("kapazitaetAbbrechen");
+const kapazitaetTrotzdem = el("kapazitaetTrotzdem");
+
 // ---------------------------------------------------------
 // Zustand
 // ---------------------------------------------------------
-let session = null; // {fahrtag, kasse}
+let session = null; // {fahrtag, kasse, rolle}
 let selectedFahrtId = null; // echte Dokument-ID in "fahrten" (z. B. "2026-09-01_sonderzug"), aus der Liste gewählt
+let selectedRolle = null; // 'kasse' | 'beide' | 'karte'
 let manuellerModus = false;
 let setupInitialized = false;
 let fahrtenListe = []; // aus der Fahrgastzählapp geladene Fahrten
@@ -258,6 +279,8 @@ let endbestandCounts = {}; // { "<cents>": Anzahl } – Stückelung des gezählt
 
 let saleQty = {}; // Ticketart-Schlüssel -> Anzahl im aktuellen (noch nicht abgeschlossenen) Verkauf
 let rgGegebenCents = 0;
+let zahlweise = "bar"; // "bar" | "karte" (nur relevant bei Rolle "beide")
+let karteEingabeCents = 0; // Betrag im Kartenzahlung-Tab (eigenes Gerät)
 
 let numpadMode = null; // 'gegeben' | 'einzahlung' | 'auszahlung'
 let numpadValue = "";
@@ -329,6 +352,11 @@ function initSetupScreen() {
   let saved = null;
   try { saved = JSON.parse(localStorage.getItem(LS_KEY) || "null"); } catch (e) { /* ignore */ }
   if (saved?.kasse) kasseInput.value = saved.kasse;
+  if (saved?.rolle) selectRolle(saved.rolle);
+
+  rolleGroup.querySelectorAll(".toggle-btn").forEach((btn) => {
+    btn.addEventListener("click", () => selectRolle(btn.dataset.rolle));
+  });
 
   fahrtManuellBtn.addEventListener("click", () => {
     manuellerModus = !manuellerModus;
@@ -384,9 +412,17 @@ function renderFahrtList() {
   });
 }
 
+function selectRolle(rolle) {
+  selectedRolle = rolle;
+  rolleGroup.querySelectorAll(".toggle-btn").forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.rolle === rolle);
+  });
+  updateStartButtonState();
+}
+
 function updateStartButtonState() {
   const hasFahrtag = manuellerModus ? !!fahrtagInput.value : !!selectedFahrtId;
-  startBtn.disabled = !hasFahrtag;
+  startBtn.disabled = !(hasFahrtag && selectedRolle);
 }
 
 function showSetupError(msg) { setupError.textContent = msg; }
@@ -407,13 +443,14 @@ async function startSession() {
   const kasse = kasseInput.value.trim() || "Kasse";
 
   if (!fahrtag) { showSetupError("Bitte einen Fahrtag wählen."); return; }
+  if (!selectedRolle) { showSetupError("Bitte eine Rolle wählen."); return; }
 
   startBtn.disabled = true;
   startBtn.textContent = "Verbinde…";
 
   try {
     await authReady;
-    session = { fahrtag, fahrtId, kasse };
+    session = { fahrtag, fahrtId, kasse, rolle: selectedRolle };
     localStorage.setItem(LS_KEY, JSON.stringify(session));
     enterApp();
   } catch (err) {
@@ -434,6 +471,8 @@ function enterApp() {
   fahrtagLabel.textContent = formatDateDE(session.fahrtag);
   kasseLabel.textContent = session.kasse;
 
+  applyRolleZuUI();
+
   const docId = session.fahrtag; // Kassenbuch/Bericht/Verkäufe: gemeinsam pro Fahrtag, unabhängig vom Zug
   fahrtRef = session.fahrtId ? doc(db, "fahrten", session.fahrtId) : null;
   kassenbuchRef = doc(db, "kassenbuch", docId);
@@ -449,6 +488,28 @@ function enterApp() {
   updateRgDisplay();
 }
 
+// Blendet Tabs ein/aus je nach gewählter Rolle und aktiviert den passenden
+// Start-Tab. Tabs ohne data-rollen-Attribut sind für alle Rollen sichtbar.
+function applyRolleZuUI() {
+  const rolle = session.rolle;
+  let ersterSichtbarerTab = null;
+  tabbar.querySelectorAll(".tab-btn").forEach((btn) => {
+    const erlaubt = btn.dataset.rollen ? btn.dataset.rollen.split(",").includes(rolle) : true;
+    btn.classList.toggle("hidden", !erlaubt);
+    if (erlaubt && !ersterSichtbarerTab) ersterSichtbarerTab = btn;
+  });
+  document.querySelectorAll(".tab-panel").forEach((p) => p.classList.remove("active"));
+  tabbar.querySelectorAll(".tab-btn").forEach((b) => b.classList.remove("active"));
+  if (ersterSichtbarerTab) {
+    ersterSichtbarerTab.classList.add("active");
+    el("tab-" + ersterSichtbarerTab.dataset.tab).classList.add("active");
+  }
+
+  // Zahlweise-Umschalter im Verkauf-Tab nur bei Rolle "beide" anzeigen
+  zahlweiseField.classList.toggle("hidden", rolle !== "beide");
+  setZahlweise("bar");
+}
+
 function leaveApp() {
   [unsubKassenbuch, unsubBuchungen, unsubFahrt, unsubBericht, unsubPreise, unsubVerkaeufe].forEach((u) => u && u());
   appScreen.classList.add("hidden");
@@ -456,6 +517,7 @@ function leaveApp() {
   showSetupError(""); showSetupInfo("");
   fahrtagInput.value = session?.fahrtag || todayISO();
   if (session?.fahrtId) { selectedFahrtId = session.fahrtId; renderFahrtList(); updateStartButtonState(); }
+  if (session?.rolle) selectRolle(session.rolle);
   kasseInput.value = session?.kasse || "";
 }
 
@@ -563,9 +625,26 @@ function renderSaleList() {
   saleTotalEl.textContent = euro(saleTotalCents());
 }
 
+function setZahlweise(neu) {
+  zahlweise = neu;
+  zahlweiseGroup.querySelectorAll(".toggle-btn").forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.zahlweise === neu);
+  });
+  barBereich.classList.toggle("hidden", neu === "karte");
+  karteBereich.classList.toggle("hidden", neu === "bar");
+  updateRgDisplay();
+}
+
 function updateRgDisplay() {
   const total = saleTotalCents();
   saleTotalEl.textContent = euro(total);
+
+  if (zahlweise === "karte") {
+    karteBetragValue.textContent = euro(total);
+    rgVerbuchen.disabled = !(total > 0);
+    return;
+  }
+
   rgGegebenBtn.textContent = euro(rgGegebenCents);
   const diff = rgGegebenCents - total;
   rgResultValue.textContent = euro(Math.abs(diff));
@@ -599,6 +678,12 @@ function updateStueckelung() {
   stueckelungList.innerHTML = zeilen.join("") || '<li class="activity-empty">Kein Rückgeld nötig.</li>';
 }
 
+zahlweiseGroup.addEventListener("click", (e) => {
+  const btn = e.target.closest(".toggle-btn");
+  if (!btn) return;
+  setZahlweise(btn.dataset.zahlweise);
+});
+
 rgGegebenBtn.addEventListener("click", () => {
   openNumpad("gegeben", "Gegebenen Betrag eingeben", rgGegebenCents);
 });
@@ -619,16 +704,53 @@ rgReset.addEventListener("click", () => {
   updateRgDisplay();
 });
 
+// Zeigt die Sitzplatz-Warnung und liefert per Promise, ob trotzdem fortgefahren werden soll.
+function frageSitzplatzWarnung(text) {
+  kapazitaetText.textContent = text;
+  kapazitaetOverlay.classList.remove("hidden");
+  return new Promise((resolve) => {
+    function schliessen(ergebnis) {
+      kapazitaetOverlay.classList.add("hidden");
+      kapazitaetAbbrechen.removeEventListener("click", onAbbrechen);
+      kapazitaetTrotzdem.removeEventListener("click", onTrotzdem);
+      resolve(ergebnis);
+    }
+    function onAbbrechen() { schliessen(false); }
+    function onTrotzdem() { schliessen(true); }
+    kapazitaetAbbrechen.addEventListener("click", onAbbrechen);
+    kapazitaetTrotzdem.addEventListener("click", onTrotzdem);
+  });
+}
+
 rgVerbuchen.addEventListener("click", async () => {
   const total = saleTotalCents();
-  if (!(total > 0 && rgGegebenCents >= total)) return;
+  const istBar = zahlweise === "bar";
+  if (!(total > 0 && (!istBar || rgGegebenCents >= total))) return;
   const posten = TICKET_TYPES.filter((t) => (saleQty[t.key] || 0) > 0).map((t) => ({ ...t, anzahl: saleQty[t.key] }));
   if (!posten.length) return;
 
   rgVerbuchen.disabled = true;
   try {
+    // Fahrgäste, die dieser Verkauf hinzufügen würde (Familienticket = 4 Personen)
+    const kategorieSummen = {};
+    posten.forEach((p) => { kategorieSummen[p.kategorie] = (kategorieSummen[p.kategorie] || 0) + p.anzahl * (p.personen || 1); });
+    const neuePersonen = Object.values(kategorieSummen).reduce((a, b) => a + b, 0);
+
+    const fahrtSnap = fahrtRef ? await getDoc(fahrtRef) : null;
+    if (fahrtSnap && fahrtSnap.exists()) {
+      const d = fahrtSnap.data();
+      const belegt = (d.einzelperson || 0) + (d.familien || 0) + (d.gruppen || 0);
+      const sitzplaetze = d.sitzplaetze || 0;
+      if (sitzplaetze > 0 && belegt + neuePersonen > sitzplaetze) {
+        const weiter = await frageSitzplatzWarnung(
+          `Belegt: ${belegt} von ${sitzplaetze} Sitzplätzen. Dieser Verkauf würde auf ${belegt + neuePersonen} erhöhen.`
+        );
+        if (!weiter) { rgVerbuchen.disabled = false; return; }
+      }
+    }
+
     const grund = "Verkauf: " + posten.map((p) => `${p.anzahl}× ${p.label}`).join(", ");
-    await bucheKassenbuch("einzahlung", total, grund);
+    await bucheKassenbuch(istBar ? "einzahlung" : "kartenzahlung", total, grund);
 
     const eintraegeRef = collection(db, "verkaeufe", session.fahrtag, "eintraege");
     for (const p of posten) {
@@ -638,12 +760,7 @@ rgVerbuchen.addEventListener("click", async () => {
       });
     }
 
-    // Fahrgäste automatisch in der Fahrgastzählapp mitzählen (Familienticket = 4 Personen)
-    const kategorieSummen = {};
-    posten.forEach((p) => { kategorieSummen[p.kategorie] = (kategorieSummen[p.kategorie] || 0) + p.anzahl * (p.personen || 1); });
-
-    const rueckgeld = Math.max(0, rgGegebenCents - total);
-    const fahrtSnap = fahrtRef ? await getDoc(fahrtRef) : null;
+    const rueckgeld = istBar ? Math.max(0, rgGegebenCents - total) : 0;
     if (fahrtSnap && fahrtSnap.exists()) {
       const updates = {};
       Object.entries(kategorieSummen).forEach(([kat, anz]) => { updates[kat] = increment(anz); });
@@ -651,9 +768,11 @@ rgVerbuchen.addEventListener("click", async () => {
       for (const [kat, anz] of Object.entries(kategorieSummen)) {
         await addDoc(collection(fahrtRef, "ereignisse"), { kategorie: kat, anzahl: anz, kasse: session.kasse, zeit: serverTimestamp() });
       }
-      rgVerbuchenHint.textContent = `${euro(total)} erhalten, ${euro(rueckgeld)} Rückgeld. Fahrgäste wurden automatisch gezählt.`;
+      rgVerbuchenHint.textContent = istBar
+        ? `${euro(total)} erhalten, ${euro(rueckgeld)} Rückgeld. Fahrgäste wurden automatisch gezählt.`
+        : `${euro(total)} per Karte gebucht. Fahrgäste wurden automatisch gezählt.`;
     } else {
-      rgVerbuchenHint.textContent = `${euro(total)} erhalten, ${euro(rueckgeld)} Rückgeld. Achtung: Für diesen Fahrtag läuft noch keine Zählung in der Fahrgastzählapp – Fahrgastzahlen wurden nicht aktualisiert.`;
+      rgVerbuchenHint.textContent = `${euro(total)} ${istBar ? "erhalten, " + euro(rueckgeld) + " Rückgeld" : "per Karte gebucht"}. Achtung: Für diesen Fahrtag läuft noch keine Zählung in der Fahrgastzählapp – Fahrgastzahlen wurden nicht aktualisiert.`;
     }
 
     saleQty = {}; rgGegebenCents = 0;
@@ -663,6 +782,34 @@ rgVerbuchen.addEventListener("click", async () => {
     rgVerbuchenHint.textContent = "Fehler: " + err.message;
   } finally {
     rgVerbuchen.disabled = false;
+  }
+});
+
+// ===========================================================
+// KARTENZAHLUNG (eigenes Gerät)
+// ===========================================================
+karteEingabeBtn.addEventListener("click", () => {
+  openNumpad("karteEingabe", "Kartenbetrag eingeben", karteEingabeCents);
+});
+karteSchnellwahl.addEventListener("click", (e) => {
+  const chip = e.target.closest(".chip");
+  if (!chip) return;
+  karteEingabeCents = Math.round(parseFloat(chip.dataset.val) * 100);
+  karteEingabeBtn.textContent = euro(karteEingabeCents);
+});
+karteErfassenBtn.addEventListener("click", async () => {
+  if (karteEingabeCents <= 0) { karteHinweis.textContent = "Bitte einen Betrag größer 0 eingeben."; return; }
+  karteErfassenBtn.disabled = true;
+  try {
+    await bucheKassenbuch("kartenzahlung", karteEingabeCents, "Kartenzahlung");
+    karteHinweis.textContent = `${euro(karteEingabeCents)} erfasst.`;
+    setTimeout(() => { karteHinweis.textContent = ""; }, 3000);
+    karteEingabeCents = 0;
+    karteEingabeBtn.textContent = euro(0);
+  } catch (err) {
+    karteHinweis.textContent = "Fehler: " + err.message;
+  } finally {
+    karteErfassenBtn.disabled = false;
   }
 });
 
@@ -752,6 +899,7 @@ function subscribeBuchungen() {
     buchungenListe = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
     renderKassenbuch();
     renderKbListe();
+    renderKarteTab();
   }, (err) => showToast("Fehler beim Laden der Buchungen: " + err.message));
 }
 
@@ -763,6 +911,8 @@ function renderKassenbuch() {
   kbEin.textContent = "+ " + euro(einSumme);
   kbAus.textContent = "− " + euro(ausSumme);
   kbTotal.textContent = euro(gesamt);
+  const kartenSumme = buchungenListe.filter(b => b.typ === "kartenzahlung").reduce((s, b) => s + (b.betrag || 0), 0);
+  kbKarteSumme.textContent = euro(kartenSumme);
 
   const endSumme = stueckelungSumme(endbestandCounts);
   endbestandGezaehltSumme.textContent = euro(endSumme);
@@ -779,14 +929,31 @@ function renderKbListe() {
     return;
   }
   kbList.innerHTML = buchungenListe.map((b) => {
-    const sign = b.typ === "einzahlung" ? "+" : "−";
-    const cls = b.typ === "einzahlung" ? "activity-delta-pos" : "activity-delta-neg";
+    const sign = b.typ === "auszahlung" ? "−" : "+";
+    const cls = b.typ === "auszahlung" ? "activity-delta-neg" : b.typ === "kartenzahlung" ? "activity-delta-karte" : "activity-delta-pos";
+    const bezeichnung = b.typ === "einzahlung" ? "Einzahlung" : b.typ === "auszahlung" ? "Auszahlung" : "Kartenzahlung";
     return `<li>
-      <span>${escapeHtml(b.kasse || "Kasse")} · ${escapeHtml(b.grund || (b.typ === "einzahlung" ? "Einzahlung" : "Auszahlung"))}</span>
-      <span class="${cls}">${sign} ${euro(b.betrag || 0)}</span>
+      <span>${escapeHtml(b.kasse || "Kasse")} · ${escapeHtml(b.grund || bezeichnung)}</span>
+      <span class="${cls}">${sign} ${euro(b.betrag || 0)}${b.typ === "kartenzahlung" ? " (Karte)" : ""}</span>
       <span class="activity-time">${formatTimeDE(b.zeit)}</span>
     </li>`;
   }).join("");
+}
+
+function renderKarteTab() {
+  if (!karteList) return; // Tab evtl. nicht im DOM relevant, defensiv
+  const karteBuchungen = buchungenListe.filter((b) => b.typ === "kartenzahlung");
+  const summe = karteBuchungen.reduce((s, b) => s + (b.betrag || 0), 0);
+  karteSumme.textContent = euro(summe);
+  if (!karteBuchungen.length) {
+    karteList.innerHTML = '<li class="activity-empty">Noch keine Kartenzahlungen heute.</li>';
+    return;
+  }
+  karteList.innerHTML = karteBuchungen.map((b) => `<li>
+    <span>${escapeHtml(b.kasse || "Kasse")} · ${escapeHtml(b.grund || "Kartenzahlung")}</span>
+    <span class="activity-delta-karte">${euro(b.betrag || 0)}</span>
+    <span class="activity-time">${formatTimeDE(b.zeit)}</span>
+  </li>`).join("");
 }
 
 async function bucheKassenbuch(typ, betragCents, grund) {
@@ -1085,6 +1252,7 @@ numpadOk.addEventListener("click", async () => {
   closeNumpad();
 
   if (mode === "gegeben") { rgGegebenCents = cents; updateRgDisplay(); return; }
+  if (mode === "karteEingabe") { karteEingabeCents = cents; karteEingabeBtn.textContent = euro(karteEingabeCents); return; }
 
   if (mode === "einzahlung" || mode === "auszahlung") {
     if (cents <= 0) { showToast("Bitte einen Betrag größer 0 eingeben."); return; }

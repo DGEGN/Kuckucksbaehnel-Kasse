@@ -51,6 +51,16 @@
     <h1>Kassenapp</h1>
     <p class="setup-sub">Kuckucks-Bähnel</p>
 
+    <div class="field">
+      <label>Rolle</label>
+      <div class="toggle-group toggle-group-3" id="rolleGroup">
+        <button type="button" class="toggle-btn" data-rolle="kasse">Verkauf</button>
+        <button type="button" class="toggle-btn" data-rolle="beide">Verkauf &amp; Karte</button>
+        <button type="button" class="toggle-btn" data-rolle="karte">Kartenzahlgerät</button>
+      </div>
+      <p class="rg-hint">„Verkauf" = nur Barzahlung. „Verkauf &amp; Karte" = für alleine Arbeitende, bei jedem Verkauf Bar/Karte wählbar. „Kartenzahlgerät" = eigenes Gerät, erfasst nur Kartenzahlungen.</p>
+    </div>
+
     <div class="field" id="fahrtListField">
       <label>Fahrt (aus der Fahrgastzählapp)</label>
       <ul class="fahrt-list" id="fahrtList">
@@ -110,7 +120,8 @@
   </header>
 
   <nav class="tabbar" id="tabbar" aria-label="Bereiche">
-    <button class="tab-btn active" data-tab="verkauf">Verkauf</button>
+    <button class="tab-btn active" data-tab="verkauf" data-rollen="kasse,beide">Verkauf</button>
+    <button class="tab-btn" data-tab="karte" data-rollen="karte">Kartenzahlung</button>
     <button class="tab-btn" data-tab="kassenbuch">Kassenbuch</button>
     <button class="tab-btn" data-tab="bericht">Verkaufsbericht</button>
     <button class="tab-btn" data-tab="preise">Preise</button>
@@ -134,27 +145,42 @@
         <div class="panel rg-panel">
           <div class="panel-head"><h2>Kassenbon</h2></div>
 
-          <div class="rg-field">
-            <label>Gegeben</label>
-            <button class="rg-amount-btn" id="rgGegebenBtn">0,00&nbsp;€</button>
-            <div class="chip-row" id="rgSchnellwahl">
-              <button type="button" class="chip" data-val="5">5&nbsp;€</button>
-              <button type="button" class="chip" data-val="10">10&nbsp;€</button>
-              <button type="button" class="chip" data-val="20">20&nbsp;€</button>
-              <button type="button" class="chip" data-val="50">50&nbsp;€</button>
-              <button type="button" class="chip" data-val="100">100&nbsp;€</button>
-              <button type="button" class="chip chip-passend" data-val="passend">passend</button>
+          <div class="field hidden" id="zahlweiseField">
+            <label>Zahlweise</label>
+            <div class="toggle-group" id="zahlweiseGroup">
+              <button type="button" class="toggle-btn active" data-zahlweise="bar">Bar</button>
+              <button type="button" class="toggle-btn" data-zahlweise="karte">Karte</button>
             </div>
           </div>
 
-          <div class="rg-result" id="rgResult">
-            <span class="rg-result-label" id="rgResultLabel">Rückgeld</span>
-            <span class="rg-result-value" id="rgResultValue">0,00&nbsp;€</span>
+          <div id="barBereich">
+            <div class="rg-field">
+              <label>Gegeben</label>
+              <button class="rg-amount-btn" id="rgGegebenBtn">0,00&nbsp;€</button>
+              <div class="chip-row" id="rgSchnellwahl">
+                <button type="button" class="chip" data-val="5">5&nbsp;€</button>
+                <button type="button" class="chip" data-val="10">10&nbsp;€</button>
+                <button type="button" class="chip" data-val="20">20&nbsp;€</button>
+                <button type="button" class="chip" data-val="50">50&nbsp;€</button>
+                <button type="button" class="chip" data-val="100">100&nbsp;€</button>
+                <button type="button" class="chip chip-passend" data-val="passend">passend</button>
+              </div>
+            </div>
+
+            <div class="rg-result" id="rgResult">
+              <span class="rg-result-label" id="rgResultLabel">Rückgeld</span>
+              <span class="rg-result-value" id="rgResultValue">0,00&nbsp;€</span>
+            </div>
+
+            <ul class="stueckelung-list" id="stueckelungList">
+              <li class="activity-empty">Tickets auswählen und Betrag eingeben.</li>
+            </ul>
           </div>
 
-          <ul class="stueckelung-list" id="stueckelungList">
-            <li class="activity-empty">Tickets auswählen und Betrag eingeben.</li>
-          </ul>
+          <div class="rg-result hidden" id="karteBereich">
+            <span class="rg-result-label">Wird per Karte belastet</span>
+            <span class="rg-result-value" id="karteBetragValue">0,00&nbsp;€</span>
+          </div>
 
           <div class="rg-actions">
             <button class="btn btn-ghost" id="rgReset">Verkauf zurücksetzen</button>
@@ -163,6 +189,47 @@
           <p class="rg-hint" id="rgVerbuchenHint"></p>
         </div>
 
+      </div>
+    </section>
+
+    <!-- ================= TAB: KARTENZAHLUNG (eigenes Gerät) ================= -->
+    <section class="tab-panel" id="tab-karte">
+      <div class="panel">
+        <div class="panel-head">
+          <h2>Kartenzahlung erfassen</h2>
+          <span class="panel-sub">heute, alle Kassen</span>
+        </div>
+
+        <div class="rg-field">
+          <label>Betrag</label>
+          <button class="rg-amount-btn" id="karteEingabeBtn">0,00&nbsp;€</button>
+          <div class="chip-row" id="karteSchnellwahl">
+            <button type="button" class="chip" data-val="5">5&nbsp;€</button>
+            <button type="button" class="chip" data-val="10">10&nbsp;€</button>
+            <button type="button" class="chip" data-val="20">20&nbsp;€</button>
+            <button type="button" class="chip" data-val="50">50&nbsp;€</button>
+          </div>
+        </div>
+
+        <button class="btn btn-brass btn-block" id="karteErfassenBtn">Kartenzahlung erfassen</button>
+        <p class="rg-hint" id="karteHinweis"></p>
+
+        <div class="kb-summary">
+          <div class="kb-summary-row kb-total">
+            <span>Kartenzahlungen heute (gesamt)</span>
+            <span id="karteSumme" class="kb-mono">0,00&nbsp;€</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <h2>Erfasste Kartenzahlungen</h2>
+          <span class="panel-sub">alle Kassen, heute</span>
+        </div>
+        <ul class="activity-list" id="karteList">
+          <li class="activity-empty">Noch keine Kartenzahlungen heute.</li>
+        </ul>
       </div>
     </section>
 
@@ -203,6 +270,10 @@
             <div class="kb-summary-row kb-total">
               <span>Kassenbestand (Soll)</span>
               <span id="kbTotal" class="kb-mono">0,00&nbsp;€</span>
+            </div>
+            <div class="kb-summary-row">
+              <span>davon Kartenzahlungen heute <span class="opt">(informativ, nicht im Bestand)</span></span>
+              <span id="kbKarteSumme" class="kb-mono">0,00&nbsp;€</span>
             </div>
           </div>
 
@@ -411,6 +482,18 @@
     <div class="dialog-actions">
       <button id="numpadCancel" class="btn btn-ghost">Abbrechen</button>
       <button id="numpadOk" class="btn btn-brass">Übernehmen</button>
+    </div>
+  </div>
+</div>
+
+<!-- Warnmeldung: Sitzplätze reichen nicht mehr aus -->
+<div id="kapazitaetOverlay" class="dialog-overlay hidden">
+  <div class="dialog-card">
+    <p class="dialog-warn-title">⚠️ Sitzplätze reichen nicht</p>
+    <p id="kapazitaetText"></p>
+    <div class="dialog-actions">
+      <button id="kapazitaetAbbrechen" class="btn btn-ghost">Abbrechen</button>
+      <button id="kapazitaetTrotzdem" class="btn btn-danger">Trotzdem verkaufen</button>
     </div>
   </div>
 </div>

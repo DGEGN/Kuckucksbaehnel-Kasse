@@ -16,14 +16,33 @@ der Fahrgastzählapp an. Ist das Konto noch nicht von einem Admin
 freigeschaltet, zeigt die App „Warte auf Freigabe" statt der Kasse. Über
 „Abmelden" (oben rechts) kann jederzeit ein anderes Konto verwendet werden.
 
+### Rolle
+Nach der Fahrt-Auswahl wählt man eine Rolle:
+- **Verkauf** — klassischer Kassenmodus, nur Barzahlung (wie bisher).
+- **Verkauf & Karte** — für alleine Arbeitende: im Verkauf-Tab erscheint
+  zusätzlich ein Bar/Karte-Umschalter. Bei „Karte" entfallen Gegeben/Rückgeld,
+  stattdessen wird der Betrag direkt als Kartenzahlung gebucht.
+- **Kartenzahlgerät** — für eine zweite Person, die nur das Kartenlesegerät
+  bedient: eigener, reduzierter Tab „Kartenzahlung" zum schnellen Erfassen
+  einzelner Kartenbeträge (kein Ticketverkauf, keine Rückgeldrechnung).
+
+Die Rolle bestimmt, welche Tabs sichtbar sind, und wird pro Gerät gemerkt.
+
 ### Verkauf
 Ticketart(en) und Anzahl auswählen (− / + oder direkt die Zahl eintippen) —
-die Summe wird automatisch aus den hinterlegten Preisen berechnet. Den vom
+die Summe wird automatisch aus den hinterlegten Preisen berechnet. Bei der
+Rolle „Verkauf & Karte" zuerst Bar oder Karte wählen. Bei **Bar**: den vom
 Kunden gegebenen Betrag über das große Feld eingeben (öffnet einen
-Ziffernblock; Schnellwahl-Chips für 5/10/20/50/100 € oder „passend"). Die
-App zeigt sofort Rückgeld **und** die günstigste Stückelung. Mit „Kauf
-abschließen" wird der Verkauf gebucht:
-- die Summe wird als Einzahlung im Kassenbuch dieser Kasse erfasst,
+Ziffernblock; Schnellwahl-Chips für 5/10/20/50/100 € oder „passend"), die
+App zeigt sofort Rückgeld **und** die günstigste Stückelung. Bei **Karte**
+entfällt das, der Gesamtbetrag wird direkt als Kartenzahlung gebucht. Mit
+„Kauf abschließen" wird der Verkauf gebucht:
+- **Warnung bei vollem Zug**: Reicht die Sitzplatzzahl der Fahrt (aus der
+  Fahrgastzählapp) nicht mehr für alle bisher gezählten **plus** diesen
+  Verkauf, erscheint ein Warn-Dialog mit der aktuellen Belegung — Verkauf
+  lässt sich trotzdem abschließen, wenn gewünscht.
+- die Summe wird als Einzahlung (Bar) bzw. Kartenzahlung im Kassenbuch
+  dieser Kasse erfasst,
 - der Verkauf wird (je Ticketart) für den Verkaufsbericht gespeichert,
 - **die passende Anzahl Fahrgäste wird automatisch in der Fahrgastzählapp
   mitgezählt**: Erwachsene- und Kinder-Tickets als `einzelperson`,
@@ -32,6 +51,14 @@ abschließen" wird der Verkauf gebucht:
   dort bereits eine Fahrt. Ist das (noch) nicht der Fall, wird der Verkauf
   trotzdem gebucht, die App weist aber darauf hin, dass die Fahrgastzahlen
   nicht aktualisiert wurden.
+
+### Kartenzahlung (eigener Tab, Rolle „Kartenzahlgerät")
+Betrag eingeben (Ziffernblock oder Schnellwahl-Chips) und „Kartenzahlung
+erfassen" — die Zahlung wird sofort im gemeinsamen Kassenbuch verbucht
+(als eigener Buchungstyp, zählt **nicht** zum Bar-Kassenbestand) und
+erscheint live in der Liste „Erfasste Kartenzahlungen" mit Tagessumme.
+Dieselbe Tagessumme ist zur Kontrolle auch im Kassenbuch-Tab sichtbar
+(„davon Kartenzahlungen heute").
 
 ### Kassenbuch
 Anfangsbestand einmal pro Fahrtag eintragen — entweder direkt als Betrag,
@@ -200,7 +227,7 @@ kassenbuch/{fahrtag}                     z. B. kassenbuch/2026-09-01
   erstellt / aktualisiert: Timestamp
 
 kassenbuch/{fahrtag}/buchungen/{id}
-  typ: "einzahlung" | "auszahlung"
+  typ: "einzahlung" | "auszahlung" | "kartenzahlung"
   betrag: 500                 (Cent, hier 5,00 €)
   grund: "Verkauf: 2× Einfache Fahrt Erwachsene, 1× Hin- Rückfahrt Kind" | frei eingegeben
   kasse: "Schalter 1"

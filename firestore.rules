@@ -217,7 +217,7 @@ service cloud.firestore {
         allow create: if istBearbeiter()
           && !istKassenDatumArchiviert(kassenId)
           && request.resource.data.keys().hasAll(['typ', 'betrag', 'kasse'])
-          && request.resource.data.typ in ['einzahlung', 'auszahlung']
+          && request.resource.data.typ in ['einzahlung', 'auszahlung', 'kartenzahlung']
           && request.resource.data.betrag is int
           && request.resource.data.betrag > 0;
 
