@@ -23,15 +23,17 @@ Nach der Fahrt-Auswahl wählt man eine Rolle:
   zusätzlich ein Bar/Karte-Umschalter. Bei „Karte" entfallen Gegeben/Rückgeld,
   stattdessen wird der Betrag direkt als Kartenzahlung gebucht.
 - **Kartenzahlgerät** — für eine zweite Person, die nur das Kartenlesegerät
-  bedient: eigener, reduzierter Tab „Kartenzahlung" zum schnellen Erfassen
-  einzelner Kartenbeträge (kein Ticketverkauf, keine Rückgeldrechnung).
+  bedient: derselbe Verkauf-Tab mit Ticketauswahl wie bei „Verkauf", nur fest
+  auf Zahlweise Karte gestellt (kein Umschalter nötig, da es nur Karte gibt).
 
-Die Rolle bestimmt, welche Tabs sichtbar sind, und wird pro Gerät gemerkt.
+Die Rolle bestimmt u. a. die Zahlweise im Verkauf-Tab und wird pro Gerät
+gemerkt.
 
 ### Verkauf
 Ticketart(en) und Anzahl auswählen (− / + oder direkt die Zahl eintippen) —
 die Summe wird automatisch aus den hinterlegten Preisen berechnet. Bei der
-Rolle „Verkauf & Karte" zuerst Bar oder Karte wählen. Bei **Bar**: den vom
+Rolle „Verkauf & Karte" zuerst Bar oder Karte wählen; bei „Kartenzahlgerät"
+ist immer Karte aktiv. Bei **Bar**: den vom
 Kunden gegebenen Betrag über das große Feld eingeben (öffnet einen
 Ziffernblock; Schnellwahl-Chips für 5/10/20/50/100 € oder „passend"), die
 App zeigt sofort Rückgeld **und** die günstigste Stückelung. Bei **Karte**
@@ -52,12 +54,9 @@ entfällt das, der Gesamtbetrag wird direkt als Kartenzahlung gebucht. Mit
   trotzdem gebucht, die App weist aber darauf hin, dass die Fahrgastzahlen
   nicht aktualisiert wurden.
 
-### Kartenzahlung (eigener Tab, Rolle „Kartenzahlgerät")
-Betrag eingeben (Ziffernblock oder Schnellwahl-Chips) und „Kartenzahlung
-erfassen" — die Zahlung wird sofort im gemeinsamen Kassenbuch verbucht
-(als eigener Buchungstyp, zählt **nicht** zum Bar-Kassenbestand) und
-erscheint live in der Liste „Erfasste Kartenzahlungen" mit Tagessumme.
-Dieselbe Tagessumme ist zur Kontrolle auch im Kassenbuch-Tab sichtbar
+Kartenzahlungen (egal ob über „Verkauf & Karte" oder „Kartenzahlgerät")
+landen als eigener Buchungstyp im gemeinsamen Kassenbuch, zählen **nicht**
+zum Bar-Kassenbestand und sind dort zur Kontrolle separat sichtbar
 („davon Kartenzahlungen heute").
 
 ### Kassenbuch

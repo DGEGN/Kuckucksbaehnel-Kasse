@@ -120,8 +120,7 @@
   </header>
 
   <nav class="tabbar" id="tabbar" aria-label="Bereiche">
-    <button class="tab-btn active" data-tab="verkauf" data-rollen="kasse,beide">Verkauf</button>
-    <button class="tab-btn" data-tab="karte" data-rollen="karte">Kartenzahlung</button>
+    <button class="tab-btn active" data-tab="verkauf">Verkauf</button>
     <button class="tab-btn" data-tab="kassenbuch">Kassenbuch</button>
     <button class="tab-btn" data-tab="bericht">Verkaufsbericht</button>
     <button class="tab-btn" data-tab="preise">Preise</button>
@@ -189,47 +188,6 @@
           <p class="rg-hint" id="rgVerbuchenHint"></p>
         </div>
 
-      </div>
-    </section>
-
-    <!-- ================= TAB: KARTENZAHLUNG (eigenes Gerät) ================= -->
-    <section class="tab-panel" id="tab-karte">
-      <div class="panel">
-        <div class="panel-head">
-          <h2>Kartenzahlung erfassen</h2>
-          <span class="panel-sub">heute, alle Kassen</span>
-        </div>
-
-        <div class="rg-field">
-          <label>Betrag</label>
-          <button class="rg-amount-btn" id="karteEingabeBtn">0,00&nbsp;€</button>
-          <div class="chip-row" id="karteSchnellwahl">
-            <button type="button" class="chip" data-val="5">5&nbsp;€</button>
-            <button type="button" class="chip" data-val="10">10&nbsp;€</button>
-            <button type="button" class="chip" data-val="20">20&nbsp;€</button>
-            <button type="button" class="chip" data-val="50">50&nbsp;€</button>
-          </div>
-        </div>
-
-        <button class="btn btn-brass btn-block" id="karteErfassenBtn">Kartenzahlung erfassen</button>
-        <p class="rg-hint" id="karteHinweis"></p>
-
-        <div class="kb-summary">
-          <div class="kb-summary-row kb-total">
-            <span>Kartenzahlungen heute (gesamt)</span>
-            <span id="karteSumme" class="kb-mono">0,00&nbsp;€</span>
-          </div>
-        </div>
-      </div>
-
-      <div class="panel">
-        <div class="panel-head">
-          <h2>Erfasste Kartenzahlungen</h2>
-          <span class="panel-sub">alle Kassen, heute</span>
-        </div>
-        <ul class="activity-list" id="karteList">
-          <li class="activity-empty">Noch keine Kartenzahlungen heute.</li>
-        </ul>
       </div>
     </section>
 

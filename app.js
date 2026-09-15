@@ -19,18 +19,18 @@ import {
 // Firebase-Konsole -> Projekteinstellungen -> "Meine Apps" -> Web-App
 // ---------------------------------------------------------
 const firebaseConfig = {
-  apiKey: "AIzaSyCpfHTMh8zx2hmcxjF-ayIjW0lFtJcBtSM",
-  authDomain: "kuckuck-fahrkarten.firebaseapp.com",
-  databaseURL: "https://kuckuck-fahrkarten-default-rtdb.europe-west1.firebasedatabase.app",
-  projectId: "kuckuck-fahrkarten",
-  storageBucket: "kuckuck-fahrkarten.firebasestorage.app",
-  messagingSenderId: "732559401683",
-  appId: "1:732559401683:web:dbfb8ef56c85c73de46a26"
+  apiKey: "DEIN_API_KEY",
+  authDomain: "DEIN_PROJEKT.firebaseapp.com",
+  projectId: "DEIN_PROJEKT",
+  storageBucket: "DEIN_PROJEKT.appspot.com",
+  messagingSenderId: "DEINE_SENDER_ID",
+  appId: "DEINE_APP_ID"
 };
+
 // TODO: Web-App-URL des Google Apps Script (endet auf "/exec"), siehe
 // google-apps-script.gs für Code + Einrichtung. Leer lassen/Platzhalter
 // stehen lassen, um die Google-Sheets-Übertragung vorerst zu deaktivieren.
-const GOOGLE_SHEETS_WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbxCcl_HOSmDsKFRPWv6T2H2KNoYQ3N0z8EE2hI58OzYCb5ipMTTXWgxGil8RyazrWCZ/exec";
+const GOOGLE_SHEETS_WEBHOOK_URL = "DEINE_APPS_SCRIPT_WEB_APP_URL";
 
 const firebaseApp = initializeApp(firebaseConfig);
 const db = getFirestore(firebaseApp);
@@ -181,14 +181,6 @@ const rgVerbuchen = el("rgVerbuchen");
 const rgVerbuchenHint = el("rgVerbuchenHint");
 const stueckelungList = el("stueckelungList");
 
-// Kartenzahlung (eigenes Gerät)
-const karteEingabeBtn = el("karteEingabeBtn");
-const karteSchnellwahl = el("karteSchnellwahl");
-const karteErfassenBtn = el("karteErfassenBtn");
-const karteHinweis = el("karteHinweis");
-const karteSumme = el("karteSumme");
-const karteList = el("karteList");
-
 // Kassenbuch
 const anfangsbestandInput = el("anfangsbestandInput");
 const anfangsbestandSpeichern = el("anfangsbestandSpeichern");
@@ -279,8 +271,7 @@ let endbestandCounts = {}; // { "<cents>": Anzahl } – Stückelung des gezählt
 
 let saleQty = {}; // Ticketart-Schlüssel -> Anzahl im aktuellen (noch nicht abgeschlossenen) Verkauf
 let rgGegebenCents = 0;
-let zahlweise = "bar"; // "bar" | "karte" (nur relevant bei Rolle "beide")
-let karteEingabeCents = 0; // Betrag im Kartenzahlung-Tab (eigenes Gerät)
+let zahlweise = "bar"; // "bar" | "karte"
 
 let numpadMode = null; // 'gegeben' | 'einzahlung' | 'auszahlung'
 let numpadValue = "";
@@ -505,9 +496,10 @@ function applyRolleZuUI() {
     el("tab-" + ersterSichtbarerTab.dataset.tab).classList.add("active");
   }
 
-  // Zahlweise-Umschalter im Verkauf-Tab nur bei Rolle "beide" anzeigen
+  // Zahlweise-Umschalter im Verkauf-Tab nur bei Rolle "beide" anzeigen –
+  // bei "kasse" fest auf Bar, bei "karte" fest auf Karte.
   zahlweiseField.classList.toggle("hidden", rolle !== "beide");
-  setZahlweise("bar");
+  setZahlweise(rolle === "karte" ? "karte" : "bar");
 }
 
 function leaveApp() {
@@ -786,34 +778,6 @@ rgVerbuchen.addEventListener("click", async () => {
 });
 
 // ===========================================================
-// KARTENZAHLUNG (eigenes Gerät)
-// ===========================================================
-karteEingabeBtn.addEventListener("click", () => {
-  openNumpad("karteEingabe", "Kartenbetrag eingeben", karteEingabeCents);
-});
-karteSchnellwahl.addEventListener("click", (e) => {
-  const chip = e.target.closest(".chip");
-  if (!chip) return;
-  karteEingabeCents = Math.round(parseFloat(chip.dataset.val) * 100);
-  karteEingabeBtn.textContent = euro(karteEingabeCents);
-});
-karteErfassenBtn.addEventListener("click", async () => {
-  if (karteEingabeCents <= 0) { karteHinweis.textContent = "Bitte einen Betrag größer 0 eingeben."; return; }
-  karteErfassenBtn.disabled = true;
-  try {
-    await bucheKassenbuch("kartenzahlung", karteEingabeCents, "Kartenzahlung");
-    karteHinweis.textContent = `${euro(karteEingabeCents)} erfasst.`;
-    setTimeout(() => { karteHinweis.textContent = ""; }, 3000);
-    karteEingabeCents = 0;
-    karteEingabeBtn.textContent = euro(0);
-  } catch (err) {
-    karteHinweis.textContent = "Fehler: " + err.message;
-  } finally {
-    karteErfassenBtn.disabled = false;
-  }
-});
-
-// ===========================================================
 // KASSENBUCH
 // ===========================================================
 function subscribeFahrt() {
@@ -899,7 +863,6 @@ function subscribeBuchungen() {
     buchungenListe = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
     renderKassenbuch();
     renderKbListe();
-    renderKarteTab();
   }, (err) => showToast("Fehler beim Laden der Buchungen: " + err.message));
 }
 
@@ -938,22 +901,6 @@ function renderKbListe() {
       <span class="activity-time">${formatTimeDE(b.zeit)}</span>
     </li>`;
   }).join("");
-}
-
-function renderKarteTab() {
-  if (!karteList) return; // Tab evtl. nicht im DOM relevant, defensiv
-  const karteBuchungen = buchungenListe.filter((b) => b.typ === "kartenzahlung");
-  const summe = karteBuchungen.reduce((s, b) => s + (b.betrag || 0), 0);
-  karteSumme.textContent = euro(summe);
-  if (!karteBuchungen.length) {
-    karteList.innerHTML = '<li class="activity-empty">Noch keine Kartenzahlungen heute.</li>';
-    return;
-  }
-  karteList.innerHTML = karteBuchungen.map((b) => `<li>
-    <span>${escapeHtml(b.kasse || "Kasse")} · ${escapeHtml(b.grund || "Kartenzahlung")}</span>
-    <span class="activity-delta-karte">${euro(b.betrag || 0)}</span>
-    <span class="activity-time">${formatTimeDE(b.zeit)}</span>
-  </li>`).join("");
 }
 
 async function bucheKassenbuch(typ, betragCents, grund) {
@@ -1252,7 +1199,6 @@ numpadOk.addEventListener("click", async () => {
   closeNumpad();
 
   if (mode === "gegeben") { rgGegebenCents = cents; updateRgDisplay(); return; }
-  if (mode === "karteEingabe") { karteEingabeCents = cents; karteEingabeBtn.textContent = euro(karteEingabeCents); return; }
 
   if (mode === "einzahlung" || mode === "auszahlung") {
     if (cents <= 0) { showToast("Bitte einen Betrag größer 0 eingeben."); return; }
