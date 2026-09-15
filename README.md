@@ -81,8 +81,9 @@ daraus automatisch die verkaufte Anzahl (Endstand − Anfangsbestand), den
 Umsatz je Ticketart und die Gesamteinnahme. Für Gruppenverkäufe (laufen nicht
 über die Ticket-Auswahl, sondern werden nur in der Fahrgastzählapp gezählt)
 gibt es eine eigene freie Betragszeile „Gruppen in Neustadt", die ebenfalls
-in die Gesamteinnahme einfließt. Im Feld „Absatz durch
-Kartenzahlung" trägt man den Betrag ein. Bei „Familien-" und
+in die Gesamteinnahme einfließt. „Absatz durch Kartenzahlung" wird
+automatisch aus allen im Kassenbuch erfassten Kartenzahlungen berechnet
+(kein manueller Eintrag mehr nötig). Bei „Familien-" und
 „Einzelperson-Gutscheinen" trägt man nur die **Anzahl** ein — ein
 Familien-Gutschein zählt fest zum Preis einer Hin- Rückfahrt Familie, ein
 Einzelperson-Gutschein zum Preis einer Hin- Rückfahrt Erwachsene (Preis
@@ -90,9 +91,12 @@ kommt automatisch aus dem Preise-Tab, der Betrag wird direkt daneben
 angezeigt). Die App addiert Kartenzahlung und beide Gutschein-Beträge und
 zieht sie von der Gesamteinnahme ab, das Ergebnis sind die erwarteten
 **Bargeldeinnahmen**. Diese werden automatisch mit der Summe verglichen, die
-die Kassenapp selbst über „Kauf abschließen" (alle Kassen) erfasst hat, samt
-Differenz-Anzeige. „Bericht speichern" sichert alles in Firestore, „als Text
-kopieren" erzeugt eine fertige Zusammenfassung.
+über „Kauf abschließen" **bar** bezahlt und erfasst wurde („Bar verkauft
+laut Kassenapp") — Kartenzahlungen zählen hier bewusst nicht mit, da sie
+schon oben abgezogen wurden. Die Differenz ist **negativ, wenn Geld fehlt**
+(weniger Bargeld erfasst als laut Berechnung nötig) und positiv, wenn mehr
+Bargeld vorhanden ist als erwartet. „Bericht speichern" sichert alles in
+Firestore, „als Text kopieren" erzeugt eine fertige Zusammenfassung.
 
 ### Ansicht: Kompakt / Ausführlich
 Oben rechts lässt sich jederzeit zwischen einer **kompakten** Ansicht (eine

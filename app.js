@@ -19,19 +19,18 @@ import {
 // Firebase-Konsole -> Projekteinstellungen -> "Meine Apps" -> Web-App
 // ---------------------------------------------------------
 const firebaseConfig = {
-  apiKey: "AIzaSyCpfHTMh8zx2hmcxjF-ayIjW0lFtJcBtSM",
-  authDomain: "kuckuck-fahrkarten.firebaseapp.com",
-  databaseURL: "https://kuckuck-fahrkarten-default-rtdb.europe-west1.firebasedatabase.app",
-  projectId: "kuckuck-fahrkarten",
-  storageBucket: "kuckuck-fahrkarten.firebasestorage.app",
-  messagingSenderId: "732559401683",
-  appId: "1:732559401683:web:dbfb8ef56c85c73de46a26"
+  apiKey: "DEIN_API_KEY",
+  authDomain: "DEIN_PROJEKT.firebaseapp.com",
+  projectId: "DEIN_PROJEKT",
+  storageBucket: "DEIN_PROJEKT.appspot.com",
+  messagingSenderId: "DEINE_SENDER_ID",
+  appId: "DEINE_APP_ID"
 };
 
 // TODO: Web-App-URL des Google Apps Script (endet auf "/exec"), siehe
 // google-apps-script.gs für Code + Einrichtung. Leer lassen/Platzhalter
 // stehen lassen, um die Google-Sheets-Übertragung vorerst zu deaktivieren.
-const GOOGLE_SHEETS_WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbxCcl_HOSmDsKFRPWv6T2H2KNoYQ3N0z8EE2hI58OzYCb5ipMTTXWgxGil8RyazrWCZ/exec";
+const GOOGLE_SHEETS_WEBHOOK_URL = "DEINE_APPS_SCRIPT_WEB_APP_URL";
 
 const firebaseApp = initializeApp(firebaseConfig);
 const db = getFirestore(firebaseApp);
@@ -264,6 +263,7 @@ let unsubKassenbuch = null, unsubBuchungen = null, unsubFahrt = null, unsubBeric
 
 let preise = { ea: 0, ra: 0, ek: 0, rk: 0, ef: 0, rf: 0 }; // in Cent, je Ticketart
 let verkaeufeSums = {}; // Ticketart-Schlüssel -> { anzahl, umsatz(Cent) }, aus den heutigen Verkäufen dieser Fahrt
+let verkaeufeBarUmsatz = 0; // Summe der heutigen Verkäufe, die bar bezahlt wurden (Cent)
 let ticketBestand = {}; // Ticketart-Schlüssel -> { anfang, ende } (fortlaufende Fahrkartennummern, gemeinsam pro Fahrtag)
 let kassenbuchAnfangCents = 0;
 let buchungenListe = [];
@@ -749,7 +749,7 @@ rgVerbuchen.addEventListener("click", async () => {
     for (const p of posten) {
       await addDoc(eintraegeRef, {
         ticket: p.key, anzahl: p.anzahl, einzelpreis: preise[p.key] || 0,
-        summe: p.anzahl * (preise[p.key] || 0), kasse: session.kasse, zeit: serverTimestamp()
+        summe: p.anzahl * (preise[p.key] || 0), kasse: session.kasse, zahlweise, zeit: serverTimestamp()
       });
     }
 
@@ -864,6 +864,7 @@ function subscribeBuchungen() {
     buchungenListe = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
     renderKassenbuch();
     renderKbListe();
+    renderBericht();
   }, (err) => showToast("Fehler beim Laden der Buchungen: " + err.message));
 }
 
@@ -954,15 +955,16 @@ kbAuszahlungBtn.addEventListener("click", () => openNumpad("auszahlung", "Auszah
 // ===========================================================
 // VERKAUFSBERICHT
 // ===========================================================
-// ticketBestand/Karte/Gutscheine/Bemerkung werden direkt in Firestore
-// gespeichert (gemeinsam pro Fahrtag, für alle Kassen sichtbar).
+// ticketBestand/Gutscheine/Bemerkung werden direkt in Firestore gespeichert
+// (gemeinsam pro Fahrtag, für alle Kassen sichtbar). Kartenzahlung wird
+// nicht mehr manuell eingetragen, sondern live aus den im Kassenbuch
+// erfassten Kartenzahlungen berechnet.
 function subscribeBericht() {
   unsubBericht = onSnapshot(berichtRef, (snap) => {
     const d = snap.exists() ? snap.data() : {};
     ticketBestand = d.ticketBestand || {};
     TICKET_TYPES.forEach((t) => { if (!ticketBestand[t.key]) ticketBestand[t.key] = {}; });
 
-    berichtKarte.value = d.kartenzahlung != null ? (d.kartenzahlung / 100).toFixed(2).replace(".", ",") : "";
     berichtGruppen.value = d.gruppenEinnahme != null ? (d.gruppenEinnahme / 100).toFixed(2).replace(".", ",") : "";
     berichtGutscheinFamilie.value = d.gutscheinFamilieAnzahl != null ? d.gutscheinFamilieAnzahl : "";
     berichtGutscheinEinzel.value = d.gutscheinEinzelAnzahl != null ? d.gutscheinEinzelAnzahl : "";
@@ -977,13 +979,16 @@ function subscribeVerkaeufe() {
   unsubVerkaeufe = onSnapshot(ref, (snap) => {
     const sums = {};
     TICKET_TYPES.forEach((t) => { sums[t.key] = { anzahl: 0, umsatz: 0 }; });
+    let barUmsatz = 0;
     snap.forEach((d) => {
       const x = d.data();
       if (!sums[x.ticket]) sums[x.ticket] = { anzahl: 0, umsatz: 0 };
       sums[x.ticket].anzahl += x.anzahl || 0;
       sums[x.ticket].umsatz += x.summe || 0;
+      if (x.zahlweise !== "karte") barUmsatz += x.summe || 0; // ältere Einträge ohne Feld = Bar
     });
     verkaeufeSums = sums;
+    verkaeufeBarUmsatz = barUmsatz;
     renderBericht();
   }, (err) => showToast("Fehler beim Laden der Verkäufe: " + err.message));
 }
@@ -996,6 +1001,11 @@ function ticketVerkauft(key) {
   if (b.anfang == null || b.ende == null) return null;
   const diff = b.ende - b.anfang;
   return diff >= 0 ? diff : null;
+}
+
+// Summe aller im Kassenbuch erfassten Kartenzahlungen (aller Kassen, heute).
+function kartenzahlungSummeCents() {
+  return buchungenListe.filter((b) => b.typ === "kartenzahlung").reduce((s, b) => s + (b.betrag || 0), 0);
 }
 
 function renderBericht() {
@@ -1019,6 +1029,9 @@ function renderBericht() {
   berichtGesamt.textContent = euro(gesamteinnahme);
   berichtSummeEinnahme.textContent = euro(gesamteinnahme);
 
+  const kartenzahlungCents = kartenzahlungSummeCents();
+  berichtKarte.textContent = euro(kartenzahlungCents);
+
   const gutscheinFamilieAnzahl = Math.max(0, parseInt(berichtGutscheinFamilie.value, 10) || 0);
   const gutscheinFamilieBetrag = gutscheinFamilieAnzahl * (preise.rf || 0);
   const gutscheinEinzelAnzahl = Math.max(0, parseInt(berichtGutscheinEinzel.value, 10) || 0);
@@ -1026,14 +1039,13 @@ function renderBericht() {
   berichtGutscheinFamilieBetrag.textContent = euro(gutscheinFamilieBetrag);
   berichtGutscheinEinzelBetrag.textContent = euro(gutscheinEinzelBetrag);
 
-  const abzug = toCents(berichtKarte.value) + gutscheinFamilieBetrag + gutscheinEinzelBetrag;
+  const abzug = kartenzahlungCents + gutscheinFamilieBetrag + gutscheinEinzelBetrag;
   berichtSummeAbzug.textContent = euro(abzug);
   const bargeld = gesamteinnahme - abzug;
   berichtBargeld.textContent = euro(bargeld);
 
-  const appUmsatz = TICKET_TYPES.reduce((sum, t) => sum + (verkaeufeSums[t.key] ? verkaeufeSums[t.key].umsatz : 0), 0);
-  berichtAppUmsatz.textContent = euro(appUmsatz);
-  updateBerichtDiff(bargeld, appUmsatz);
+  berichtAppUmsatz.textContent = euro(verkaeufeBarUmsatz);
+  updateBerichtDiff(bargeld, verkaeufeBarUmsatz);
 
   const attachNumberInput = (selector, feld) => {
     berichtBody.querySelectorAll(selector).forEach((input) => {
@@ -1050,14 +1062,16 @@ function renderBericht() {
   attachNumberInput(".bericht-ende", "ende");
 }
 
+// diff = Ist (bar verkauft laut Kassenapp) − Soll (erwartete Bargeldeinnahmen).
+// Negativ = es fehlt Geld, positiv = mehr Bargeld vorhanden als laut Berechnung nötig.
 function updateBerichtDiff(bargeldCents, appUmsatzCents) {
-  const diff = bargeldCents - appUmsatzCents;
+  const diff = appUmsatzCents - bargeldCents;
   berichtDiff.textContent = (diff >= 0 ? "+" : "") + euro(diff);
   berichtDiffRow.classList.toggle("diff-ok", diff === 0);
   berichtDiffRow.classList.toggle("diff-bad", diff !== 0);
 }
 
-[berichtKarte, berichtGruppen, berichtGutscheinFamilie, berichtGutscheinEinzel].forEach((input) => {
+[berichtGruppen, berichtGutscheinFamilie, berichtGutscheinEinzel].forEach((input) => {
   input.addEventListener("input", renderBericht);
 });
 
@@ -1066,7 +1080,7 @@ berichtSpeichern.addEventListener("click", async () => {
     await setDoc(berichtRef, {
       fahrtag: session.fahrtag,
       ticketBestand,
-      kartenzahlung: toCents(berichtKarte.value),
+      kartenzahlung: kartenzahlungSummeCents(),
       gruppenEinnahme: toCents(berichtGruppen.value),
       gutscheinFamilieAnzahl: Math.max(0, parseInt(berichtGutscheinFamilie.value, 10) || 0),
       gutscheinEinzelAnzahl: Math.max(0, parseInt(berichtGutscheinEinzel.value, 10) || 0),
@@ -1098,11 +1112,11 @@ function buildBerichtPayload() {
   const gutscheinEinzelAnzahl = Math.max(0, parseInt(berichtGutscheinEinzel.value, 10) || 0);
   const gutscheinEinzelBetrag = gutscheinEinzelAnzahl * (preise.ra || 0);
 
-  const kartenzahlung = toCents(berichtKarte.value);
+  const kartenzahlung = kartenzahlungSummeCents();
   const summeAbzug = kartenzahlung + gutscheinFamilieBetrag + gutscheinEinzelBetrag;
   const bargeldEinnahmen = gesamteinnahme - summeAbzug;
-  const appUmsatz = TICKET_TYPES.reduce((sum, t) => sum + (verkaeufeSums[t.key] ? verkaeufeSums[t.key].umsatz : 0), 0);
-  const differenz = bargeldEinnahmen - appUmsatz;
+  const appUmsatz = verkaeufeBarUmsatz;
+  const differenz = appUmsatz - bargeldEinnahmen;
 
   return {
     fahrtag: session.fahrtag, kasse: session.kasse,
@@ -1153,12 +1167,12 @@ berichtCsv.addEventListener("click", async () => {
   });
   zeilen.push(`Gruppen in Neustadt: ${berichtGruppen.value || "0,00"} €`);
   zeilen.push(`Gesamteinnahme: ${berichtGesamt.textContent}`);
-  zeilen.push(`Kartenzahlung: ${berichtKarte.value || "0,00"} €`);
+  zeilen.push(`Kartenzahlung: ${euro(kartenzahlungSummeCents())}`);
   zeilen.push(`Familien-Gutscheine: ${berichtGutscheinFamilie.value || "0"} Stück (${berichtGutscheinFamilieBetrag.textContent})`);
   zeilen.push(`Einzelperson-Gutscheine: ${berichtGutscheinEinzel.value || "0"} Stück (${berichtGutscheinEinzelBetrag.textContent})`);
   zeilen.push(`Bargeldeinnahmen (erwartet): ${berichtBargeld.textContent}`);
-  zeilen.push(`Verkauft laut Kassenapp: ${berichtAppUmsatz.textContent}`);
-  zeilen.push(`Differenz: ${berichtDiff.textContent}`);
+  zeilen.push(`Bar verkauft laut Kassenapp: ${berichtAppUmsatz.textContent}`);
+  zeilen.push(`Differenz (negativ = Geld fehlt): ${berichtDiff.textContent}`);
   if (berichtBemerkung.value.trim()) zeilen.push(`Bemerkung: ${berichtBemerkung.value.trim()}`);
   const text = zeilen.join("\n");
   try {

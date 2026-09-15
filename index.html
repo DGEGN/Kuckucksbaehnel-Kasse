@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, viewport-fit=cover" />
-<title>Kasse · Kuckucks-Bähnel</title>
+<title>Kassenapp · Kuckucks-Bähnel</title>
 <link rel="icon" type="image/png" href="assets/logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -312,8 +312,8 @@
 
         <div class="preise-grid">
           <div class="field">
-            <label for="berichtKarte">Absatz durch Kartenzahlung</label>
-            <input type="text" id="berichtKarte" inputmode="decimal" placeholder="0,00">
+            <label>Absatz durch Kartenzahlung <span class="opt">(automatisch aus erfassten Kartenzahlungen)</span></label>
+            <span id="berichtKarte" class="kb-mono">0,00&nbsp;€</span>
           </div>
           <div class="field">
             <label for="berichtGutscheinFamilie">Familien-Gutscheine (Anzahl, à Preis Hin- Rückfahrt Familie)</label>
@@ -351,11 +351,11 @@
         <div class="panel-head"><h2>Vergleich mit der Kassenapp</h2></div>
         <div class="bericht-vergleich">
           <div class="kb-summary-row">
-            <span>Verkauft laut Kassenapp (alle Kassen)</span>
+            <span>Bar verkauft laut Kassenapp (alle Kassen)</span>
             <span id="berichtAppUmsatz" class="kb-mono">0,00&nbsp;€</span>
           </div>
           <div class="bericht-diff-row" id="berichtDiffRow">
-            <span>Differenz zu den erwarteten Bargeldeinnahmen</span>
+            <span>Differenz <span class="opt">(negativ = Geld fehlt, positiv = mehr Bargeld als erwartet)</span></span>
             <span id="berichtDiff" class="kb-mono">–</span>
           </div>
         </div>
