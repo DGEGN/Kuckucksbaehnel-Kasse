@@ -19,19 +19,18 @@ import {
 // Firebase-Konsole -> Projekteinstellungen -> "Meine Apps" -> Web-App
 // ---------------------------------------------------------
 const firebaseConfig = {
-  apiKey: "AIzaSyCpfHTMh8zx2hmcxjF-ayIjW0lFtJcBtSM",
-  authDomain: "kuckuck-fahrkarten.firebaseapp.com",
-  databaseURL: "https://kuckuck-fahrkarten-default-rtdb.europe-west1.firebasedatabase.app",
-  projectId: "kuckuck-fahrkarten",
-  storageBucket: "kuckuck-fahrkarten.firebasestorage.app",
-  messagingSenderId: "732559401683",
-  appId: "1:732559401683:web:dbfb8ef56c85c73de46a26"
+  apiKey: "DEIN_API_KEY",
+  authDomain: "DEIN_PROJEKT.firebaseapp.com",
+  projectId: "DEIN_PROJEKT",
+  storageBucket: "DEIN_PROJEKT.appspot.com",
+  messagingSenderId: "DEINE_SENDER_ID",
+  appId: "DEINE_APP_ID"
 };
 
 // TODO: Web-App-URL des Google Apps Script (endet auf "/exec"), siehe
 // google-apps-script.gs für Code + Einrichtung. Leer lassen/Platzhalter
 // stehen lassen, um die Google-Sheets-Übertragung vorerst zu deaktivieren.
-const GOOGLE_SHEETS_WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbxCcl_HOSmDsKFRPWv6T2H2KNoYQ3N0z8EE2hI58OzYCb5ipMTTXWgxGil8RyazrWCZ/exec";
+const GOOGLE_SHEETS_WEBHOOK_URL = "DEINE_APPS_SCRIPT_WEB_APP_URL";
 
 const firebaseApp = initializeApp(firebaseConfig);
 const db = getFirestore(firebaseApp);
@@ -87,8 +86,8 @@ const KASSEN_STUECKELUNG = [
 // Fahrgäste mitzählt.
 const TICKET_TYPES = [
   { key: "ea", label: "Einfache Fahrt Erwachsene", kategorie: "einzelperson", personen: 1 },
-  { key: "ek", label: "Einfache Fahrt Kind", kategorie: "einzelperson", personen: 1 },
   { key: "ra", label: "Hin- Rückfahrt Erwachsene", kategorie: "einzelperson", personen: 1 },
+  { key: "ek", label: "Einfache Fahrt Kind", kategorie: "einzelperson", personen: 1 },
   { key: "rk", label: "Hin- Rückfahrt Kind", kategorie: "einzelperson", personen: 1 },
   { key: "ef", label: "Einfache Fahrt Familie", kategorie: "familien", personen: 4 },
   { key: "rf", label: "Hin- Rückfahrt Familie", kategorie: "familien", personen: 4 }
@@ -275,7 +274,6 @@ let unsubKassenbuch = null, unsubBuchungen = null, unsubFahrt = null, unsubBeric
 
 let preise = { ea: 0, ra: 0, ek: 0, rk: 0, ef: 0, rf: 0 }; // in Cent, je Ticketart
 let verkaeufeSums = {}; // Ticketart-Schlüssel -> { anzahl, umsatz(Cent) }, aus den heutigen Verkäufen dieser Fahrt
-let verkaeufeBarUmsatz = 0; // Summe der heutigen Verkäufe, die bar bezahlt wurden (Cent)
 let ticketBestand = {}; // Ticketart-Schlüssel -> { anfang, ende } (fortlaufende Fahrkartennummern, gemeinsam pro Fahrtag)
 let kassenbuchAnfangCents = 0;
 let buchungenListe = [];
@@ -1069,16 +1067,13 @@ function subscribeVerkaeufe() {
   unsubVerkaeufe = onSnapshot(ref, (snap) => {
     const sums = {};
     TICKET_TYPES.forEach((t) => { sums[t.key] = { anzahl: 0, umsatz: 0 }; });
-    let barUmsatz = 0;
     snap.forEach((d) => {
       const x = d.data();
       if (!sums[x.ticket]) sums[x.ticket] = { anzahl: 0, umsatz: 0 };
       sums[x.ticket].anzahl += x.anzahl || 0;
       sums[x.ticket].umsatz += x.summe || 0;
-      if (x.zahlweise !== "karte") barUmsatz += x.summe || 0; // ältere Einträge ohne Feld = Bar
     });
     verkaeufeSums = sums;
-    verkaeufeBarUmsatz = barUmsatz;
     renderBericht();
   }, (err) => showToast("Fehler beim Laden der Verkäufe: " + err.message));
 }
@@ -1109,6 +1104,16 @@ function ticketVerkauft(key) {
 // Summe aller im Kassenbuch erfassten Kartenzahlungen (aller Kassen, heute).
 function kartenzahlungSummeCents() {
   return buchungenListe.filter((b) => b.typ === "kartenzahlung").reduce((s, b) => s + (b.betrag || 0), 0);
+}
+
+// Tatsächlich bar eingenommenes Geld aus Ticketverkäufen (heute, alle Kassen) —
+// direkt aus den Kassenbuch-Einzahlungen, die vom Verkauf-Tab stammen. Das ist
+// bereits der Betrag NACH Abzug eingelöster Gutscheine (nicht der Bruttopreis
+// der Tickets), damit es korrekt mit den erwarteten Bargeldeinnahmen vergleichbar ist.
+function verkaufBarSummeCents() {
+  return buchungenListe
+    .filter((b) => b.typ === "einzahlung" && (b.grund || "").startsWith("Verkauf:"))
+    .reduce((s, b) => s + (b.betrag || 0), 0);
 }
 
 function renderBericht() {
@@ -1149,8 +1154,8 @@ function renderBericht() {
   const bargeld = gesamteinnahme - abzug;
   berichtBargeld.textContent = euro(bargeld);
 
-  berichtAppUmsatz.textContent = euro(verkaeufeBarUmsatz);
-  updateBerichtDiff(bargeld, verkaeufeBarUmsatz);
+  berichtAppUmsatz.textContent = euro(verkaufBarSummeCents());
+  updateBerichtDiff(bargeld, verkaufBarSummeCents());
 
   const attachNumberInput = (selector, feld) => {
     berichtBody.querySelectorAll(selector).forEach((input) => {
@@ -1218,7 +1223,7 @@ function buildBerichtPayload() {
   const kartenzahlung = kartenzahlungSummeCents();
   const summeAbzug = kartenzahlung + gutscheinFamilieBetrag + gutscheinEinzelBetrag;
   const bargeldEinnahmen = gesamteinnahme - summeAbzug;
-  const appUmsatz = verkaeufeBarUmsatz;
+  const appUmsatz = verkaufBarSummeCents();
   const differenz = appUmsatz - bargeldEinnahmen;
 
   return {

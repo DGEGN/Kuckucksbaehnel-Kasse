@@ -102,8 +102,10 @@ direkt daneben angezeigt). Die App addiert Kartenzahlung und beide
 Gutschein-Beträge und
 zieht sie von der Gesamteinnahme ab, das Ergebnis sind die erwarteten
 **Bargeldeinnahmen**. Diese werden automatisch mit der Summe verglichen, die
-über „Kauf abschließen" **bar** bezahlt und erfasst wurde („Bar verkauft
-laut Kassenapp") — Kartenzahlungen zählen hier bewusst nicht mit, da sie
+über „Kauf abschließen" **bar** bezahlt und ins Kassenbuch gebucht wurde
+(„Bar verkauft laut Kassenapp" — bereits nach Abzug eingelöster Gutscheine,
+also der tatsächlich kassierte Betrag, nicht der Ticket-Bruttopreis).
+Kartenzahlungen zählen hier bewusst nicht mit, da sie
 schon oben abgezogen wurden. Die Differenz ist **negativ, wenn Geld fehlt**
 (weniger Bargeld erfasst als laut Berechnung nötig) und positiv, wenn mehr
 Bargeld vorhanden ist als erwartet. „Bericht speichern" sichert alles in
