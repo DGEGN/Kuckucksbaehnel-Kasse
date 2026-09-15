@@ -31,21 +31,31 @@ gemerkt.
 
 ### Verkauf
 Ticketart(en) und Anzahl auswählen (− / + oder direkt die Zahl eintippen) —
-die Summe wird automatisch aus den hinterlegten Preisen berechnet. Bei der
-Rolle „Verkauf & Karte" zuerst Bar oder Karte wählen; bei „Kartenzahlgerät"
-ist immer Karte aktiv. Bei **Bar**: den vom
+die Summe (Ticketsumme) wird automatisch aus den hinterlegten Preisen
+berechnet. Darunter lassen sich **eingelöste Gutscheine** erfassen (Anzahl
+Familien- bzw. Einzelperson-Gutschein, gleicher Preis wie die jeweilige
+Hin- Rückfahrt-Karte) — die App zieht deren Wert von der Ticketsumme ab und
+zeigt den tatsächlich **zu zahlenden** Betrag. Bei der Rolle „Verkauf &
+Karte" zuerst Bar oder Karte wählen; bei „Kartenzahlgerät" ist immer Karte
+aktiv. Bei **Bar**: den vom
 Kunden gegebenen Betrag über das große Feld eingeben (öffnet einen
 Ziffernblock; Schnellwahl-Chips für 5/10/20/50/100 € oder „passend"), die
-App zeigt sofort Rückgeld **und** die günstigste Stückelung. Bei **Karte**
-entfällt das, der Gesamtbetrag wird direkt als Kartenzahlung gebucht. Mit
-„Kauf abschließen" wird der Verkauf gebucht:
+App zeigt sofort Rückgeld **und** die günstigste Stückelung — beides auf
+Basis des Betrags nach Gutschein-Abzug. Bei **Karte**
+entfällt das, der zu zahlende Betrag wird direkt als Kartenzahlung gebucht.
+Ist der Gutschein-Wert genauso hoch wie oder höher als die Ticketsumme, ist
+nichts mehr zu zahlen (0 €) — der Verkauf lässt sich trotzdem abschließen.
+Mit „Kauf abschließen" wird der Verkauf gebucht:
 - **Warnung bei vollem Zug**: Reicht die Sitzplatzzahl der Fahrt (aus der
   Fahrgastzählapp) nicht mehr für alle bisher gezählten **plus** diesen
   Verkauf, erscheint ein Warn-Dialog mit der aktuellen Belegung — Verkauf
   lässt sich trotzdem abschließen, wenn gewünscht.
-- die Summe wird als Einzahlung (Bar) bzw. Kartenzahlung im Kassenbuch
-  dieser Kasse erfasst,
-- der Verkauf wird (je Ticketart) für den Verkaufsbericht gespeichert,
+- der zu zahlende Betrag (nach Gutschein-Abzug) wird als Einzahlung (Bar)
+  bzw. Kartenzahlung im Kassenbuch dieser Kasse erfasst (bei 0 € entfällt
+  die Kassenbuch-Buchung),
+- der Verkauf wird (je Ticketart, zum vollen Preis) für den Verkaufsbericht
+  gespeichert, eingelöste Gutscheine werden separat für den automatischen
+  Gutschein-Abzug im Verkaufsbericht erfasst,
 - **die passende Anzahl Fahrgäste wird automatisch in der Fahrgastzählapp
   mitgezählt**: Erwachsene- und Kinder-Tickets als `einzelperson`,
   Familientickets als `familien` (4 Personen pro verkauftem Familienticket)
@@ -82,13 +92,14 @@ Umsatz je Ticketart und die Gesamteinnahme. Für Gruppenverkäufe (laufen nicht
 über die Ticket-Auswahl, sondern werden nur in der Fahrgastzählapp gezählt)
 gibt es eine eigene freie Betragszeile „Gruppen in Neustadt", die ebenfalls
 in die Gesamteinnahme einfließt. „Absatz durch Kartenzahlung" wird
-automatisch aus allen im Kassenbuch erfassten Kartenzahlungen berechnet
-(kein manueller Eintrag mehr nötig). Bei „Familien-" und
-„Einzelperson-Gutscheinen" trägt man nur die **Anzahl** ein — ein
-Familien-Gutschein zählt fest zum Preis einer Hin- Rückfahrt Familie, ein
-Einzelperson-Gutschein zum Preis einer Hin- Rückfahrt Erwachsene (Preis
-kommt automatisch aus dem Preise-Tab, der Betrag wird direkt daneben
-angezeigt). Die App addiert Kartenzahlung und beide Gutschein-Beträge und
+automatisch aus allen im Kassenbuch erfassten Kartenzahlungen berechnet.
+„Familien-" und „Einzelperson-Gutscheine" werden automatisch aus den im
+Verkauf-Tab eingelösten Gutscheinen gezählt (kein manueller Eintrag mehr
+nötig) — ein Familien-Gutschein zählt fest zum Preis einer Hin- Rückfahrt
+Familie, ein Einzelperson-Gutschein zum Preis einer Hin- Rückfahrt
+Erwachsene (Preis kommt automatisch aus dem Preise-Tab, der Betrag wird
+direkt daneben angezeigt). Die App addiert Kartenzahlung und beide
+Gutschein-Beträge und
 zieht sie von der Gesamteinnahme ab, das Ergebnis sind die erwarteten
 **Bargeldeinnahmen**. Diese werden automatisch mit der Summe verglichen, die
 über „Kauf abschließen" **bar** bezahlt und erfasst wurde („Bar verkauft
@@ -240,7 +251,15 @@ verkaeufe/{fahrtag}/eintraege/{id}
   ticket: "ea" | "ra" | "ek" | "rk" | "ef" | "rf"
   anzahl: 2
   einzelpreis: 500             (Cent, Preis zum Verkaufszeitpunkt)
-  summe: 1000                  (Cent)
+  summe: 1000                  (Cent, voller Ticketpreis, unabhängig von eingelösten Gutscheinen)
+  kasse: "Schalter 1"
+  zahlweise: "bar" | "karte"
+  zeit: Timestamp
+
+gutscheine/{fahrtag}/eintraege/{id}
+  typ: "familie" | "einzelperson"
+  anzahl: 1
+  wert: 4500                   (Cent, anzahl × aktuellem Preis Hin- Rückfahrt Familie/Erwachsene)
   kasse: "Schalter 1"
   zeit: Timestamp
 

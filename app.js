@@ -87,11 +87,19 @@ const KASSEN_STUECKELUNG = [
 // Fahrgäste mitzählt.
 const TICKET_TYPES = [
   { key: "ea", label: "Einfache Fahrt Erwachsene", kategorie: "einzelperson", personen: 1 },
-  { key: "ra", label: "Hin- Rückfahrt Erwachsene", kategorie: "einzelperson", personen: 1 },
   { key: "ek", label: "Einfache Fahrt Kind", kategorie: "einzelperson", personen: 1 },
+  { key: "ra", label: "Hin- Rückfahrt Erwachsene", kategorie: "einzelperson", personen: 1 },
   { key: "rk", label: "Hin- Rückfahrt Kind", kategorie: "einzelperson", personen: 1 },
   { key: "ef", label: "Einfache Fahrt Familie", kategorie: "familien", personen: 4 },
   { key: "rf", label: "Hin- Rückfahrt Familie", kategorie: "familien", personen: 4 }
+];
+
+// Gutschein-Arten: "preisTicket" verweist auf den TICKET_TYPES-Schlüssel, dessen
+// Preis den Gutscheinwert bestimmt (Familien-Gutschein = Preis Hin- Rückfahrt
+// Familie, Einzelperson-Gutschein = Preis Hin- Rückfahrt Erwachsene).
+const GUTSCHEIN_TYPES = [
+  { key: "familie", label: "Familien-Gutschein", preisTicket: "rf" },
+  { key: "einzelperson", label: "Einzelperson-Gutschein", preisTicket: "ra" }
 ];
 
 function todayISO() {
@@ -172,6 +180,9 @@ const karteBetragValue = el("karteBetragValue");
 // Verkauf
 const saleListEl = el("saleList");
 const saleTotalEl = el("saleTotal");
+const gutscheinListEl = el("gutscheinList");
+const gutscheinAbzugEl = el("gutscheinAbzug");
+const zuZahlenEl = el("zuZahlen");
 const rgGegebenBtn = el("rgGegebenBtn");
 const rgSchnellwahl = el("rgSchnellwahl");
 const rgResult = el("rgResult");
@@ -272,6 +283,9 @@ let anfangsbestandCounts = {}; // { "<cents>": Anzahl } – Stückelung des Anfa
 let endbestandCounts = {}; // { "<cents>": Anzahl } – Stückelung des gezählten Endbestands
 
 let saleQty = {}; // Ticketart-Schlüssel -> Anzahl im aktuellen (noch nicht abgeschlossenen) Verkauf
+let gutscheinQty = { familie: 0, einzelperson: 0 }; // eingelöste Gutscheine im aktuellen Verkauf
+let unsubGutscheine = null;
+let gutscheineSums = { familie: 0, einzelperson: 0 }; // heute eingelöst, in Stück (alle Kassen)
 let rgGegebenCents = 0;
 let zahlweise = "bar"; // "bar" | "karte"
 
@@ -477,6 +491,7 @@ function enterApp() {
   subscribeBuchungen();
   subscribeBericht();
   subscribeVerkaeufe();
+  subscribeGutscheine();
   renderSaleList();
   updateRgDisplay();
 }
@@ -505,7 +520,7 @@ function applyRolleZuUI() {
 }
 
 function leaveApp() {
-  [unsubKassenbuch, unsubBuchungen, unsubFahrt, unsubBericht, unsubPreise, unsubVerkaeufe].forEach((u) => u && u());
+  [unsubKassenbuch, unsubBuchungen, unsubFahrt, unsubBericht, unsubPreise, unsubVerkaeufe, unsubGutscheine].forEach((u) => u && u());
   appScreen.classList.add("hidden");
   setupScreen.classList.remove("hidden");
   showSetupError(""); showSetupInfo("");
@@ -580,6 +595,19 @@ function saleTotalCents() {
   return TICKET_TYPES.reduce((sum, t) => sum + (saleQty[t.key] || 0) * (preise[t.key] || 0), 0);
 }
 
+function gutscheinPreis(key) {
+  const g = GUTSCHEIN_TYPES.find((x) => x.key === key);
+  return g ? (preise[g.preisTicket] || 0) : 0;
+}
+
+function gutscheinAbzugCents() {
+  return GUTSCHEIN_TYPES.reduce((sum, g) => sum + (gutscheinQty[g.key] || 0) * gutscheinPreis(g.key), 0);
+}
+
+function zuZahlenCents() {
+  return Math.max(0, saleTotalCents() - gutscheinAbzugCents());
+}
+
 function renderSaleList() {
   saleListEl.innerHTML = TICKET_TYPES.map((t) => {
     const qty = saleQty[t.key] || 0;
@@ -617,6 +645,47 @@ function renderSaleList() {
   });
 
   saleTotalEl.textContent = euro(saleTotalCents());
+  renderGutscheinList();
+}
+
+function renderGutscheinList() {
+  gutscheinListEl.innerHTML = GUTSCHEIN_TYPES.map((g) => {
+    const qty = gutscheinQty[g.key] || 0;
+    const price = gutscheinPreis(g.key);
+    return `<li class="sale-row">
+      <div>
+        <span class="sale-name">${g.label}</span>
+        <span class="sale-price">${euro(price)} / Stück</span>
+      </div>
+      <div class="sale-stepper">
+        <button type="button" class="sale-step-btn" data-action="minus" data-key="${g.key}" aria-label="weniger ${g.label}">−</button>
+        <input type="text" inputmode="numeric" class="sale-qty" data-key="${g.key}" value="${qty}">
+        <button type="button" class="sale-step-btn" data-action="plus" data-key="${g.key}" aria-label="mehr ${g.label}">+</button>
+      </div>
+      <span class="sale-subtotal">${euro(qty * price)}</span>
+    </li>`;
+  }).join("");
+
+  gutscheinListEl.querySelectorAll(".sale-step-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const key = btn.dataset.key;
+      const delta = btn.dataset.action === "plus" ? 1 : -1;
+      gutscheinQty[key] = Math.max(0, (gutscheinQty[key] || 0) + delta);
+      renderGutscheinList();
+      updateRgDisplay();
+    });
+  });
+  gutscheinListEl.querySelectorAll(".sale-qty").forEach((input) => {
+    input.addEventListener("change", () => {
+      const key = input.dataset.key;
+      gutscheinQty[key] = Math.max(0, parseInt(input.value, 10) || 0);
+      renderGutscheinList();
+      updateRgDisplay();
+    });
+  });
+
+  gutscheinAbzugEl.textContent = "− " + euro(gutscheinAbzugCents());
+  zuZahlenEl.textContent = euro(zuZahlenCents());
 }
 
 function setZahlweise(neu) {
@@ -630,12 +699,14 @@ function setZahlweise(neu) {
 }
 
 function updateRgDisplay() {
-  const total = saleTotalCents();
-  saleTotalEl.textContent = euro(total);
+  saleTotalEl.textContent = euro(saleTotalCents());
+  gutscheinAbzugEl.textContent = "− " + euro(gutscheinAbzugCents());
+  zuZahlenEl.textContent = euro(zuZahlenCents());
+  const total = zuZahlenCents();
 
   if (zahlweise === "karte") {
     karteBetragValue.textContent = euro(total);
-    rgVerbuchen.disabled = !(total > 0);
+    rgVerbuchen.disabled = !(saleTotalCents() > 0);
     return;
   }
 
@@ -644,12 +715,12 @@ function updateRgDisplay() {
   rgResultValue.textContent = euro(Math.abs(diff));
   rgResultLabel.textContent = diff < 0 ? "Fehlbetrag – bitte mehr verlangen" : "Rückgeld";
   rgResult.classList.toggle("rg-negativ", diff < 0);
-  rgVerbuchen.disabled = !(total > 0 && diff >= 0);
+  rgVerbuchen.disabled = !(saleTotalCents() > 0 && diff >= 0);
   updateStueckelung();
 }
 
 function updateStueckelung() {
-  const total = saleTotalCents();
+  const total = zuZahlenCents();
   const diff = rgGegebenCents - total;
   if (total === 0) {
     stueckelungList.innerHTML = '<li class="activity-empty">Tickets auswählen und gegebenen Betrag eingeben.</li>';
@@ -692,7 +763,7 @@ rgSchnellwahl.addEventListener("click", (e) => {
   updateRgDisplay();
 });
 rgReset.addEventListener("click", () => {
-  saleQty = {}; rgGegebenCents = 0;
+  saleQty = {}; gutscheinQty = { familie: 0, einzelperson: 0 }; rgGegebenCents = 0;
   rgVerbuchenHint.textContent = "";
   renderSaleList();
   updateRgDisplay();
@@ -717,11 +788,13 @@ function frageSitzplatzWarnung(text) {
 }
 
 rgVerbuchen.addEventListener("click", async () => {
-  const total = saleTotalCents();
+  const bruttoTotal = saleTotalCents();
+  const zuZahlen = zuZahlenCents();
   const istBar = zahlweise === "bar";
-  if (!(total > 0 && (!istBar || rgGegebenCents >= total))) return;
+  if (!(bruttoTotal > 0 && (!istBar || rgGegebenCents >= zuZahlen))) return;
   const posten = TICKET_TYPES.filter((t) => (saleQty[t.key] || 0) > 0).map((t) => ({ ...t, anzahl: saleQty[t.key] }));
   if (!posten.length) return;
+  const gutscheinPosten = GUTSCHEIN_TYPES.filter((g) => (gutscheinQty[g.key] || 0) > 0).map((g) => ({ ...g, anzahl: gutscheinQty[g.key], wert: gutscheinQty[g.key] * gutscheinPreis(g.key) }));
 
   rgVerbuchen.disabled = true;
   try {
@@ -743,8 +816,12 @@ rgVerbuchen.addEventListener("click", async () => {
       }
     }
 
-    const grund = "Verkauf: " + posten.map((p) => `${p.anzahl}× ${p.label}`).join(", ");
-    await bucheKassenbuch(istBar ? "einzahlung" : "kartenzahlung", total, grund);
+    const grundTeile = posten.map((p) => `${p.anzahl}× ${p.label}`);
+    if (gutscheinPosten.length) grundTeile.push(...gutscheinPosten.map((g) => `− ${g.anzahl}× ${g.label}`));
+    const grund = "Verkauf: " + grundTeile.join(", ");
+    if (zuZahlen > 0) {
+      await bucheKassenbuch(istBar ? "einzahlung" : "kartenzahlung", zuZahlen, grund);
+    }
 
     const eintraegeRef = collection(db, "verkaeufe", session.fahrtag, "eintraege");
     for (const p of posten) {
@@ -753,8 +830,24 @@ rgVerbuchen.addEventListener("click", async () => {
         summe: p.anzahl * (preise[p.key] || 0), kasse: session.kasse, zahlweise, zeit: serverTimestamp()
       });
     }
+    if (gutscheinPosten.length) {
+      const gutscheinRef = collection(db, "gutscheine", session.fahrtag, "eintraege");
+      for (const g of gutscheinPosten) {
+        await addDoc(gutscheinRef, {
+          typ: g.key, anzahl: g.anzahl, wert: g.wert, kasse: session.kasse, zeit: serverTimestamp()
+        });
+      }
+    }
 
-    const rueckgeld = istBar ? Math.max(0, rgGegebenCents - total) : 0;
+    const rueckgeld = istBar ? Math.max(0, rgGegebenCents - zuZahlen) : 0;
+    let hint;
+    if (zuZahlen === 0) {
+      hint = "Verkauf komplett mit Gutschein bezahlt, kein Betrag fällig.";
+    } else if (istBar) {
+      hint = `${euro(zuZahlen)} erhalten, ${euro(rueckgeld)} Rückgeld.`;
+    } else {
+      hint = `${euro(zuZahlen)} per Karte gebucht.`;
+    }
     if (fahrtSnap && fahrtSnap.exists()) {
       const updates = {};
       Object.entries(kategorieSummen).forEach(([kat, anz]) => { updates[kat] = increment(anz); });
@@ -762,14 +855,12 @@ rgVerbuchen.addEventListener("click", async () => {
       for (const [kat, anz] of Object.entries(kategorieSummen)) {
         await addDoc(collection(fahrtRef, "ereignisse"), { kategorie: kat, anzahl: anz, kasse: session.kasse, zeit: serverTimestamp() });
       }
-      rgVerbuchenHint.textContent = istBar
-        ? `${euro(total)} erhalten, ${euro(rueckgeld)} Rückgeld. Fahrgäste wurden automatisch gezählt.`
-        : `${euro(total)} per Karte gebucht. Fahrgäste wurden automatisch gezählt.`;
+      rgVerbuchenHint.textContent = hint + " Fahrgäste wurden automatisch gezählt.";
     } else {
-      rgVerbuchenHint.textContent = `${euro(total)} ${istBar ? "erhalten, " + euro(rueckgeld) + " Rückgeld" : "per Karte gebucht"}. Achtung: Für diesen Fahrtag läuft noch keine Zählung in der Fahrgastzählapp – Fahrgastzahlen wurden nicht aktualisiert.`;
+      rgVerbuchenHint.textContent = hint + " Achtung: Für diesen Fahrtag läuft noch keine Zählung in der Fahrgastzählapp – Fahrgastzahlen wurden nicht aktualisiert.";
     }
 
-    saleQty = {}; rgGegebenCents = 0;
+    saleQty = {}; gutscheinQty = { familie: 0, einzelperson: 0 }; rgGegebenCents = 0;
     renderSaleList();
     updateRgDisplay();
   } catch (err) {
@@ -967,8 +1058,6 @@ function subscribeBericht() {
     TICKET_TYPES.forEach((t) => { if (!ticketBestand[t.key]) ticketBestand[t.key] = {}; });
 
     berichtGruppen.value = d.gruppenEinnahme != null ? (d.gruppenEinnahme / 100).toFixed(2).replace(".", ",") : "";
-    berichtGutscheinFamilie.value = d.gutscheinFamilieAnzahl != null ? d.gutscheinFamilieAnzahl : "";
-    berichtGutscheinEinzel.value = d.gutscheinEinzelAnzahl != null ? d.gutscheinEinzelAnzahl : "";
     if (d.bemerkung) berichtBemerkung.value = d.bemerkung;
 
     renderBericht();
@@ -992,6 +1081,19 @@ function subscribeVerkaeufe() {
     verkaeufeBarUmsatz = barUmsatz;
     renderBericht();
   }, (err) => showToast("Fehler beim Laden der Verkäufe: " + err.message));
+}
+
+function subscribeGutscheine() {
+  const ref = collection(db, "gutscheine", session.fahrtag, "eintraege");
+  unsubGutscheine = onSnapshot(ref, (snap) => {
+    const sums = { familie: 0, einzelperson: 0 };
+    snap.forEach((d) => {
+      const x = d.data();
+      if (sums[x.typ] != null) sums[x.typ] += x.anzahl || 0;
+    });
+    gutscheineSums = sums;
+    renderBericht();
+  }, (err) => showToast("Fehler beim Laden der Gutscheine: " + err.message));
 }
 
 // Anzahl verkaufter Tickets einer Art = Endstand − Anfangsbestand der fortlaufenden
@@ -1033,10 +1135,12 @@ function renderBericht() {
   const kartenzahlungCents = kartenzahlungSummeCents();
   berichtKarte.textContent = euro(kartenzahlungCents);
 
-  const gutscheinFamilieAnzahl = Math.max(0, parseInt(berichtGutscheinFamilie.value, 10) || 0);
+  const gutscheinFamilieAnzahl = gutscheineSums.familie || 0;
   const gutscheinFamilieBetrag = gutscheinFamilieAnzahl * (preise.rf || 0);
-  const gutscheinEinzelAnzahl = Math.max(0, parseInt(berichtGutscheinEinzel.value, 10) || 0);
+  const gutscheinEinzelAnzahl = gutscheineSums.einzelperson || 0;
   const gutscheinEinzelBetrag = gutscheinEinzelAnzahl * (preise.ra || 0);
+  berichtGutscheinFamilie.textContent = gutscheinFamilieAnzahl + " Stück";
+  berichtGutscheinEinzel.textContent = gutscheinEinzelAnzahl + " Stück";
   berichtGutscheinFamilieBetrag.textContent = euro(gutscheinFamilieBetrag);
   berichtGutscheinEinzelBetrag.textContent = euro(gutscheinEinzelBetrag);
 
@@ -1072,9 +1176,7 @@ function updateBerichtDiff(bargeldCents, appUmsatzCents) {
   berichtDiffRow.classList.toggle("diff-bad", diff !== 0);
 }
 
-[berichtGruppen, berichtGutscheinFamilie, berichtGutscheinEinzel].forEach((input) => {
-  input.addEventListener("input", renderBericht);
-});
+berichtGruppen.addEventListener("input", renderBericht);
 
 berichtSpeichern.addEventListener("click", async () => {
   try {
@@ -1083,8 +1185,8 @@ berichtSpeichern.addEventListener("click", async () => {
       ticketBestand,
       kartenzahlung: kartenzahlungSummeCents(),
       gruppenEinnahme: toCents(berichtGruppen.value),
-      gutscheinFamilieAnzahl: Math.max(0, parseInt(berichtGutscheinFamilie.value, 10) || 0),
-      gutscheinEinzelAnzahl: Math.max(0, parseInt(berichtGutscheinEinzel.value, 10) || 0),
+      gutscheinFamilieAnzahl: gutscheineSums.familie || 0,
+      gutscheinEinzelAnzahl: gutscheineSums.einzelperson || 0,
       bemerkung: berichtBemerkung.value.trim(),
       kasse: session.kasse, aktualisiert: serverTimestamp()
     }, { merge: true });
@@ -1108,9 +1210,9 @@ function buildBerichtPayload() {
   const gruppenEinnahme = toCents(berichtGruppen.value);
   const gesamteinnahme = zeilen.reduce((s, z) => s + (z.umsatz || 0), 0) + gruppenEinnahme;
 
-  const gutscheinFamilieAnzahl = Math.max(0, parseInt(berichtGutscheinFamilie.value, 10) || 0);
+  const gutscheinFamilieAnzahl = gutscheineSums.familie || 0;
   const gutscheinFamilieBetrag = gutscheinFamilieAnzahl * (preise.rf || 0);
-  const gutscheinEinzelAnzahl = Math.max(0, parseInt(berichtGutscheinEinzel.value, 10) || 0);
+  const gutscheinEinzelAnzahl = gutscheineSums.einzelperson || 0;
   const gutscheinEinzelBetrag = gutscheinEinzelAnzahl * (preise.ra || 0);
 
   const kartenzahlung = kartenzahlungSummeCents();
@@ -1169,8 +1271,8 @@ berichtCsv.addEventListener("click", async () => {
   zeilen.push(`Gruppen in Neustadt: ${berichtGruppen.value || "0,00"} €`);
   zeilen.push(`Gesamteinnahme: ${berichtGesamt.textContent}`);
   zeilen.push(`Kartenzahlung: ${euro(kartenzahlungSummeCents())}`);
-  zeilen.push(`Familien-Gutscheine: ${berichtGutscheinFamilie.value || "0"} Stück (${berichtGutscheinFamilieBetrag.textContent})`);
-  zeilen.push(`Einzelperson-Gutscheine: ${berichtGutscheinEinzel.value || "0"} Stück (${berichtGutscheinEinzelBetrag.textContent})`);
+  zeilen.push(`Familien-Gutscheine: ${gutscheineSums.familie || 0} Stück (${berichtGutscheinFamilieBetrag.textContent})`);
+  zeilen.push(`Einzelperson-Gutscheine: ${gutscheineSums.einzelperson || 0} Stück (${berichtGutscheinEinzelBetrag.textContent})`);
   zeilen.push(`Bargeldeinnahmen (erwartet): ${berichtBargeld.textContent}`);
   zeilen.push(`Bar verkauft laut Kassenapp: ${berichtAppUmsatz.textContent}`);
   zeilen.push(`Differenz (negativ = Geld fehlt): ${berichtDiff.textContent}`);
@@ -1240,7 +1342,7 @@ function showToast(msg) {
 
 changeSessionBtn.addEventListener("click", leaveApp);
 logoutBtn.addEventListener("click", () => {
-  [unsubKassenbuch, unsubBuchungen, unsubFahrt, unsubBericht, unsubPreise, unsubVerkaeufe].forEach((u) => u && u());
+  [unsubKassenbuch, unsubBuchungen, unsubFahrt, unsubBericht, unsubPreise, unsubVerkaeufe, unsubGutscheine].forEach((u) => u && u());
   logout();
 });
 

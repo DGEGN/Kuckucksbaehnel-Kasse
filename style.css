@@ -389,6 +389,13 @@ input { font-family: var(--font-body); }
   display: flex; justify-content: space-between; align-items: center;
   border-top: 2px solid var(--ink); padding-top: 10px; font-size: 1.1rem; font-weight: 700;
 }
+.sale-total-row.kb-minus { border-top: none; padding-top: 4px; font-size: 0.95rem; color: var(--alert); }
+.sale-total-row.sale-total-final { font-size: 1.25rem; color: var(--forest); }
+
+.gutschein-head {
+  margin: 16px 0 4px; font-size: 0.78rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.04em; color: var(--ink-soft); border-top: 1px dashed var(--paper-dark); padding-top: 12px;
+}
 
 /* ============================================================
    KASSENBUCH
