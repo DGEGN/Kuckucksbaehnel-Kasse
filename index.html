@@ -5,6 +5,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, viewport-fit=cover" />
 <title>Kassenapp · Kuckucks-Bähnel</title>
 <link rel="icon" type="image/png" href="assets/logo.png">
+<link rel="apple-touch-icon" href="assets/logo.png">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#263c2b">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Kassenapp">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Special+Elite&family=IBM+Plex+Mono:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -320,24 +325,30 @@
 
       <div class="panel">
         <div class="panel-head"><h2>Zahlungsarten &amp; Gutscheine</h2></div>
+        <p class="rg-hint">Werte sind manuell editierbar — praktisch, wenn ein Kollege im Dienst die App nicht nutzt und seine Kartenzahlungen/Gutscheine nicht automatisch erfasst werden. „Auto" zeigt, was die App selbst erfasst hat, und übernimmt diesen Wert auf Klick.</p>
 
         <div class="preise-grid">
           <div class="field">
-            <label>Absatz durch Kartenzahlung <span class="opt">(automatisch aus erfassten Kartenzahlungen)</span></label>
-            <span id="berichtKarte" class="kb-mono">0,00&nbsp;€</span>
-          </div>
-          <div class="field">
-            <label>Familien-Gutscheine <span class="opt">(automatisch aus im Verkauf eingelösten Gutscheinen, à Preis Hin- Rückfahrt Familie)</span></label>
+            <label for="berichtKarte">Absatz durch Kartenzahlung</label>
             <div class="kb-anfangsbestand-row">
-              <span id="berichtGutscheinFamilie" class="kb-mono">0 Stück</span>
-              <span id="berichtGutscheinFamilieBetrag" class="kb-mono">0,00&nbsp;€</span>
+              <input type="text" id="berichtKarte" inputmode="decimal" placeholder="0,00">
+              <button type="button" class="btn btn-ghost btn-small" id="berichtKarteAuto">Auto: <span id="berichtKarteAutoWert">0,00&nbsp;€</span></button>
             </div>
           </div>
           <div class="field">
-            <label>Einzelperson-Gutscheine <span class="opt">(automatisch aus im Verkauf eingelösten Gutscheinen, à Preis Hin- Rückfahrt Erwachsene)</span></label>
+            <label for="berichtGutscheinFamilie">Familien-Gutscheine (Anzahl, à Preis Hin- Rückfahrt Familie)</label>
             <div class="kb-anfangsbestand-row">
-              <span id="berichtGutscheinEinzel" class="kb-mono">0 Stück</span>
+              <input type="text" id="berichtGutscheinFamilie" inputmode="numeric" placeholder="0">
+              <span id="berichtGutscheinFamilieBetrag" class="kb-mono">0,00&nbsp;€</span>
+              <button type="button" class="btn btn-ghost btn-small" id="berichtGutscheinFamilieAuto">Auto: <span id="berichtGutscheinFamilieAutoWert">0</span></button>
+            </div>
+          </div>
+          <div class="field">
+            <label for="berichtGutscheinEinzel">Einzelperson-Gutscheine (Anzahl, à Preis Hin- Rückfahrt Erwachsene)</label>
+            <div class="kb-anfangsbestand-row">
+              <input type="text" id="berichtGutscheinEinzel" inputmode="numeric" placeholder="0">
               <span id="berichtGutscheinEinzelBetrag" class="kb-mono">0,00&nbsp;€</span>
+              <button type="button" class="btn btn-ghost btn-small" id="berichtGutscheinEinzelAuto">Auto: <span id="berichtGutscheinEinzelAutoWert">0</span></button>
             </div>
           </div>
         </div>
