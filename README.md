@@ -34,6 +34,12 @@ Die verknüpfte Fahrt (Sitzplätze/Fahrgastzählung) ist dagegen dieselbe für
 alle drei Standorte, da sie aus der Fahrgastzählapp kommt und dort nicht
 nach Standort unterschieden wird.
 
+**Elmstein** hat zusätzlich drei eigene Ticketarten in Rückrichtung:
+„Einfache Fahrt Elmstein-Neustadt" für Erwachsene, Kind und Familie, mit
+eigenen Preisen (eigener Block im Preise-Tab, nur bei Standort Elmstein
+sichtbar). An den anderen beiden Standorten erscheinen diese drei
+Ticketarten nicht.
+
 ### Rolle
 Nach der Fahrt-Auswahl wählt man eine Rolle:
 - **Verkauf** — klassischer Kassenmodus, nur Barzahlung (wie bisher).
@@ -339,6 +345,9 @@ einstellungen/preise-elmstein
   rk: 450   — Hin- Rückfahrt Kind
   ef: 1500  — Einfache Fahrt Familie
   rf: 2000  — Hin- Rückfahrt Familie
+  ena: ...  — nur bei preise-elmstein: Einfache Fahrt Elmstein-Neustadt Erwachsene
+  enk: ...  — nur bei preise-elmstein: Einfache Fahrt Elmstein-Neustadt Kind
+  enf: ...  — nur bei preise-elmstein: Einfache Fahrt Elmstein-Neustadt Familie
   aktualisiert: Timestamp
 ```
 

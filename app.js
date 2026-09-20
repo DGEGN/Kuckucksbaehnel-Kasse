@@ -19,20 +19,18 @@ import {
 // Firebase-Konsole -> Projekteinstellungen -> "Meine Apps" -> Web-App
 // ---------------------------------------------------------
 const firebaseConfig = {
-  apiKey: "AIzaSyCpfHTMh8zx2hmcxjF-ayIjW0lFtJcBtSM",
-  authDomain: "kuckuck-fahrkarten.firebaseapp.com",
-  databaseURL: "https://kuckuck-fahrkarten-default-rtdb.europe-west1.firebasedatabase.app",
-  projectId: "kuckuck-fahrkarten",
-  storageBucket: "kuckuck-fahrkarten.firebasestorage.app",
-  messagingSenderId: "732559401683",
-  appId: "1:732559401683:web:dbfb8ef56c85c73de46a26"
+  apiKey: "DEIN_API_KEY",
+  authDomain: "DEIN_PROJEKT.firebaseapp.com",
+  projectId: "DEIN_PROJEKT",
+  storageBucket: "DEIN_PROJEKT.appspot.com",
+  messagingSenderId: "DEINE_SENDER_ID",
+  appId: "DEINE_APP_ID"
 };
 
 // TODO: Web-App-URL des Google Apps Script (endet auf "/exec"), siehe
 // google-apps-script.gs für Code + Einrichtung. Leer lassen/Platzhalter
 // stehen lassen, um die Google-Sheets-Übertragung vorerst zu deaktivieren.
-const GOOGLE_SHEETS_WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbxCcl_HOSmDsKFRPWv6T2H2KNoYQ3N0z8EE2hI58OzYCb5ipMTTXWgxGil8RyazrWCZ/exec";
-
+const GOOGLE_SHEETS_WEBHOOK_URL = "DEINE_APPS_SCRIPT_WEB_APP_URL";
 
 const firebaseApp = initializeApp(firebaseConfig);
 const db = getFirestore(firebaseApp);
@@ -89,12 +87,26 @@ const KASSEN_STUECKELUNG = [
 // Fahrgäste mitzählt.
 const TICKET_TYPES = [
   { key: "ea", label: "Einfache Fahrt Erwachsene", kategorie: "einzelperson", personen: 1 },
-  { key: "ek", label: "Einfache Fahrt Kind", kategorie: "einzelperson", personen: 1 },
   { key: "ra", label: "Hin- Rückfahrt Erwachsene", kategorie: "einzelperson", personen: 1 },
+  { key: "ek", label: "Einfache Fahrt Kind", kategorie: "einzelperson", personen: 1 },
   { key: "rk", label: "Hin- Rückfahrt Kind", kategorie: "einzelperson", personen: 1 },
   { key: "ef", label: "Einfache Fahrt Familie", kategorie: "familien", personen: 4 },
   { key: "rf", label: "Hin- Rückfahrt Familie", kategorie: "familien", personen: 4 }
 ];
+
+// Nur an der Kasse Elmstein zusätzlich verfügbar: einfache Fahrt in
+// Rückrichtung (Elmstein -> Neustadt), eigene Ticketart mit eigenem Preis.
+const ELMSTEIN_TICKET_TYPES = [
+  { key: "ena", label: "Einfache Fahrt Elmstein-Neustadt Erwachsene", kategorie: "einzelperson", personen: 1 },
+  { key: "enk", label: "Einfache Fahrt Elmstein-Neustadt Kind", kategorie: "einzelperson", personen: 1 },
+  { key: "enf", label: "Einfache Fahrt Elmstein-Neustadt Familie", kategorie: "familien", personen: 4 }
+];
+
+// Welche Ticketarten an der aktuellen Kasse angeboten werden — Elmstein hat
+// zusätzlich die Rückrichtungs-Tickets nach Neustadt.
+function aktiveTicketTypes() {
+  return (session && session.standort === "elmstein") ? TICKET_TYPES.concat(ELMSTEIN_TICKET_TYPES) : TICKET_TYPES;
+}
 
 // Gutschein-Arten: "preisTicket" verweist auf den TICKET_TYPES-Schlüssel, dessen
 // Preis den Gutscheinwert bestimmt (Familien-Gutschein = Preis Hin- Rückfahrt
@@ -254,6 +266,10 @@ const preisEK = el("preisEK");
 const preisRK = el("preisRK");
 const preisEF = el("preisEF");
 const preisRF = el("preisRF");
+const preiseElmsteinGrid = el("preiseElmsteinGrid");
+const preisENA = el("preisENA");
+const preisENK = el("preisENK");
+const preisENF = el("preisENF");
 const preiseSpeichern = el("preiseSpeichern");
 const preiseHinweis = el("preiseHinweis");
 const preiseStandort = el("preiseStandort");
@@ -583,16 +599,18 @@ tabbar.addEventListener("click", (e) => {
 // ===========================================================
 function subscribePreise() {
   const ref = doc(db, "einstellungen", `preise-${session.standort}`);
+  preiseElmsteinGrid.classList.toggle("hidden", session.standort !== "elmstein");
   unsubPreise = onSnapshot(ref, (snap) => {
     if (snap.exists()) {
       const d = snap.data();
       preise = {
         ea: d.ea || 0, ra: d.ra || 0,
         ek: d.ek || 0, rk: d.rk || 0,
-        ef: d.ef || 0, rf: d.rf || 0
+        ef: d.ef || 0, rf: d.rf || 0,
+        ena: d.ena || 0, enk: d.enk || 0, enf: d.enf || 0
       };
     } else {
-      preise = { ea: 0, ra: 0, ek: 0, rk: 0, ef: 0, rf: 0 };
+      preise = { ea: 0, ra: 0, ek: 0, rk: 0, ef: 0, rf: 0, ena: 0, enk: 0, enf: 0 };
     }
     preisEA.value = (preise.ea / 100).toFixed(2).replace(".", ",");
     preisRA.value = (preise.ra / 100).toFixed(2).replace(".", ",");
@@ -600,6 +618,11 @@ function subscribePreise() {
     preisRK.value = (preise.rk / 100).toFixed(2).replace(".", ",");
     preisEF.value = (preise.ef / 100).toFixed(2).replace(".", ",");
     preisRF.value = (preise.rf / 100).toFixed(2).replace(".", ",");
+    if (session.standort === "elmstein") {
+      preisENA.value = (preise.ena / 100).toFixed(2).replace(".", ",");
+      preisENK.value = (preise.enk / 100).toFixed(2).replace(".", ",");
+      preisENF.value = (preise.enf / 100).toFixed(2).replace(".", ",");
+    }
     renderSaleList();
     updateRgDisplay();
     renderBericht();
@@ -612,6 +635,11 @@ preiseSpeichern.addEventListener("click", async () => {
     ek: toCents(preisEK.value), rk: toCents(preisRK.value),
     ef: toCents(preisEF.value), rf: toCents(preisRF.value)
   };
+  if (session.standort === "elmstein") {
+    neu.ena = toCents(preisENA.value);
+    neu.enk = toCents(preisENK.value);
+    neu.enf = toCents(preisENF.value);
+  }
   try {
     await setDoc(doc(db, "einstellungen", `preise-${session.standort}`), { ...neu, aktualisiert: serverTimestamp() }, { merge: true });
     preiseHinweis.textContent = `Preise gespeichert – gelten sofort für alle Kassen in ${STANDORT_LABEL[session.standort] || session.standort}.`;
@@ -627,7 +655,7 @@ preiseSpeichern.addEventListener("click", async () => {
 // VERKAUF (Ticketauswahl, Rückgeld, Kauf abschließen)
 // ===========================================================
 function saleTotalCents() {
-  return TICKET_TYPES.reduce((sum, t) => sum + (saleQty[t.key] || 0) * (preise[t.key] || 0), 0);
+  return aktiveTicketTypes().reduce((sum, t) => sum + (saleQty[t.key] || 0) * (preise[t.key] || 0), 0);
 }
 
 function gutscheinPreis(key) {
@@ -644,7 +672,7 @@ function zuZahlenCents() {
 }
 
 function renderSaleList() {
-  saleListEl.innerHTML = TICKET_TYPES.map((t) => {
+  saleListEl.innerHTML = aktiveTicketTypes().map((t) => {
     const qty = saleQty[t.key] || 0;
     const price = preise[t.key] || 0;
     return `<li class="sale-row">
@@ -890,7 +918,7 @@ rgVerbuchen.addEventListener("click", async () => {
   const zuZahlen = zuZahlenCents();
   const istBar = zahlweise === "bar";
   if (!(bruttoTotal > 0 && (!istBar || rgGegebenCents >= zuZahlen))) return;
-  const posten = TICKET_TYPES.filter((t) => (saleQty[t.key] || 0) > 0).map((t) => ({ ...t, anzahl: saleQty[t.key] }));
+  const posten = aktiveTicketTypes().filter((t) => (saleQty[t.key] || 0) > 0).map((t) => ({ ...t, anzahl: saleQty[t.key] }));
   if (!posten.length) return;
   const gutscheinPosten = GUTSCHEIN_TYPES.filter((g) => (gutscheinQty[g.key] || 0) > 0).map((g) => ({ ...g, anzahl: gutscheinQty[g.key], wert: gutscheinQty[g.key] * gutscheinPreis(g.key) }));
 
@@ -1186,7 +1214,7 @@ function subscribeBericht() {
   unsubBericht = onSnapshot(berichtRef, (snap) => {
     const d = snap.exists() ? snap.data() : {};
     ticketBestand = d.ticketBestand || {};
-    TICKET_TYPES.forEach((t) => { if (!ticketBestand[t.key]) ticketBestand[t.key] = {}; });
+    aktiveTicketTypes().forEach((t) => { if (!ticketBestand[t.key]) ticketBestand[t.key] = {}; });
 
     berichtGruppen.value = d.gruppenEinnahme != null ? (d.gruppenEinnahme / 100).toFixed(2).replace(".", ",") : "";
     berichtKarte.value = d.kartenzahlung != null ? (d.kartenzahlung / 100).toFixed(2).replace(".", ",") : "";
@@ -1202,7 +1230,7 @@ function subscribeVerkaeufe() {
   const ref = collection(db, "verkaeufe", `${session.fahrtag}_${session.standort}`, "eintraege");
   unsubVerkaeufe = onSnapshot(ref, (snap) => {
     const sums = {};
-    TICKET_TYPES.forEach((t) => { sums[t.key] = { anzahl: 0, umsatz: 0 }; });
+    aktiveTicketTypes().forEach((t) => { sums[t.key] = { anzahl: 0, umsatz: 0 }; });
     snap.forEach((d) => {
       const x = d.data();
       if (!sums[x.ticket]) sums[x.ticket] = { anzahl: 0, umsatz: 0 };
@@ -1254,7 +1282,7 @@ function verkaufBarSummeCents() {
 
 function renderBericht() {
   let gesamteinnahme = 0;
-  berichtBody.innerHTML = TICKET_TYPES.map((t) => {
+  berichtBody.innerHTML = aktiveTicketTypes().map((t) => {
     const b = ticketBestand[t.key] || {};
     const verkauft = ticketVerkauft(t.key);
     const preis = preise[t.key] || 0;
@@ -1355,7 +1383,7 @@ berichtSpeichern.addEventListener("click", async () => {
 // Baut denselben Bericht, den auch die Anzeige/der Text-Export nutzt, als
 // reines Datenobjekt für die Übertragung an Google Sheets.
 function buildBerichtPayload() {
-  const zeilen = TICKET_TYPES.map((t) => {
+  const zeilen = aktiveTicketTypes().map((t) => {
     const b = ticketBestand[t.key] || {};
     const verkauft = ticketVerkauft(t.key);
     const preis = preise[t.key] || 0;
@@ -1418,7 +1446,7 @@ berichtSheetsBtn.addEventListener("click", async () => {
 
 berichtCsv.addEventListener("click", async () => {
   const zeilen = [`Verkaufsbericht ${formatDateDE(session.fahrtag)} – ${STANDORT_LABEL[session.standort] || session.standort}`];
-  TICKET_TYPES.forEach((t) => {
+  aktiveTicketTypes().forEach((t) => {
     const b = ticketBestand[t.key] || {};
     const verkauft = ticketVerkauft(t.key);
     zeilen.push(`${t.label}: ${b.anfang != null ? b.anfang : "–"} → ${b.ende != null ? b.ende : "–"} = ${verkauft != null ? verkauft : "–"} Stück`);
