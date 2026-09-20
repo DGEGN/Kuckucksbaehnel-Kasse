@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Bedienungsanleitung · Kassenapp Kuckucks-Bähnel</title>
+<link rel="icon" type="image/png" href="assets/logo.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Special+Elite&family=IBM+Plex+Mono:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --forest: #263c2b; --forest-deep: #182619;
+    --sandstone: #a8532f; --brass: #b6883f; --brass-light: #d7ab63;
+    --paper: #f3ecda; --paper-edge: #e2d5b3; --paper-dark: #d9caa1;
+    --ink: #201c15; --ink-soft: #4a4436;
+    --alert: #a83a2c; --ok: #3c6b47;
+    --font-display: 'Special Elite', 'Courier New', monospace;
+    --font-mono: 'IBM Plex Mono', 'Courier New', monospace;
+    --font-body: 'Inter', system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--paper); color: var(--ink); font-family: var(--font-body); }
+  .seite { max-width: 780px; margin: 0 auto; padding: 32px 20px 80px; }
+
+  .titel-logo { display: block; width: 84px; height: 84px; object-fit: contain; background: #fff;
+    border-radius: 50%; border: 3px solid var(--ink); padding: 6px; margin: 0 auto 16px; }
+  h1.haupttitel { font-family: var(--font-display); text-align: center; font-size: 2rem; color: var(--forest); margin: 0 0 4px; }
+  p.untertitel { text-align: center; color: var(--sandstone); font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.06em; font-size: 0.85rem; margin: 0 0 20px; }
+  h2.abschnittstitel { text-align: center; font-size: 1.3rem; margin: 0 0 4px; }
+  p.beschreibung { text-align: center; color: var(--ink-soft); margin: 0 0 20px; }
+
+  .kurz-box {
+    background: #fff; border: 1px solid var(--paper-dark); border-radius: 10px;
+    padding: 16px 20px; margin-bottom: 16px;
+  }
+  .kurz-box strong { display: block; margin-bottom: 6px; }
+
+  .stand { text-align: center; color: var(--ink-soft); font-size: 0.82rem; margin-bottom: 6px; }
+  .fusszeile { text-align: center; color: var(--ink-soft); font-size: 0.78rem; margin: 28px 0; }
+
+  h2 { font-family: var(--font-display); color: var(--forest); font-size: 1.25rem;
+    border-bottom: 2px solid var(--brass); padding-bottom: 6px; margin: 40px 0 14px; scroll-margin-top: 16px; }
+  h3 { color: var(--ink); font-size: 1.02rem; margin: 20px 0 8px; }
+  p, li { line-height: 1.55; }
+  ul, ol { padding-left: 1.3em; }
+  ol li { margin-bottom: 6px; }
+
+  .tipp, .achtung, .wichtig {
+    border-radius: 8px; padding: 12px 16px; margin: 14px 0; font-size: 0.92rem;
+  }
+  .tipp { background: #e7efe7; border: 1px solid var(--ok); }
+  .achtung { background: #f6e2de; border: 1px solid var(--alert); }
+  .wichtig { background: var(--paper-edge); border: 1px solid var(--brass); }
+  .tipp strong, .achtung strong, .wichtig strong { display: block; margin-bottom: 4px; }
+
+  code, .taste {
+    font-family: var(--font-mono); background: var(--paper-edge); border-radius: 4px;
+    padding: 1px 6px; font-size: 0.88em;
+  }
+
+  .inhalt { background: #fff; border: 1px solid var(--paper-dark); border-radius: 10px; padding: 18px 24px; margin: 24px 0; }
+  .inhalt h2 { border: none; margin: 0 0 10px; font-size: 1.1rem; }
+  .inhalt ol { columns: 1; }
+  .inhalt li { margin-bottom: 4px; }
+  .inhalt a { color: var(--ink); text-decoration: none; }
+  .inhalt a:hover { text-decoration: underline; }
+
+  .grundsatz { background: var(--forest); color: #f3ecda; border-radius: 10px; padding: 16px 20px; margin: 24px 0; }
+  .grundsatz strong { display: block; color: var(--brass-light); margin-bottom: 6px; text-transform: uppercase; font-size: 0.8rem; letter-spacing: 0.05em; }
+
+  table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 0.9rem; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px dashed var(--paper-dark); }
+  th { color: var(--ink-soft); text-transform: uppercase; font-size: 0.72rem; letter-spacing: 0.04em; }
+
+  .zurueck-oben { position: fixed; bottom: 18px; right: 18px; background: var(--forest); color: #f3ecda;
+    border-radius: 50%; width: 42px; height: 42px; display: flex; align-items: center; justify-content: center;
+    text-decoration: none; font-size: 1.1rem; box-shadow: 0 4px 10px rgba(0,0,0,0.3); }
+
+  @media print {
+    .zurueck-oben { display: none; }
+    body { background: #fff; }
+  }
+</style>
+</head>
+<body>
+<div class="seite">
+
+  <img class="titel-logo" src="assets/logo.png" alt="Kuckucks-Bähnel Logo" onerror="this.style.display='none'">
+  <h1 class="haupttitel">KASSENAPP</h1>
+  <p class="untertitel">Kuckucks-Bähnel</p>
+  <h2 class="abschnittstitel" style="border:none;">Bedienungsanleitung</h2>
+  <p class="beschreibung">Praxisleitfaden für Kassenpersonal und Admins</p>
+
+  <div class="kurz-box">
+    <strong>Kurz gesagt</strong>
+    Tickets verkaufen (bar, Karte oder mit Gutschein), Kassenbuch führen, Verkaufsberichte erstellen und
+    optional an Google Sheets senden – nach Anmeldung mit Museums-E-Mail und Freigabe durch einen Admin.
+    Jeder Standort (Neustadt, Lambrecht, Elmstein) hat sein eigenes Kassenbuch und eigene Preise. Die
+    verkauften Tickets zählen automatisch als Fahrgäste in der Fahrgastzählapp mit.
+  </div>
+
+  <p class="stand">Stand: September 2026 · Praxisleitfaden zur aktuellen Version (mit Standorten,
+    Gutscheinen, Storno, Google-Sheets-Export und Elmstein-Sonderticket)</p>
+  <p class="fusszeile">Kassenapp · Kuckucks-Bähnel</p>
+
+  <div class="inhalt">
+    <h2>Inhalt</h2>
+    <ol>
+      <li><a href="#anmeldung">Anmeldung</a></li>
+      <li><a href="#freigabe">Warten auf Freigabe</a></li>
+      <li><a href="#standort-rolle">Standort und Rolle wählen</a></li>
+      <li><a href="#fahrt-oeffnen">Eine Fahrt öffnen</a></li>
+      <li><a href="#tickets-verkaufen">Tickets verkaufen</a></li>
+      <li><a href="#gutscheine">Gutscheine einlösen</a></li>
+      <li><a href="#bar-karte">Bar oder Karte bezahlen</a></li>
+      <li><a href="#sitzplatz-warnung">Sitzplatz-Warnung</a></li>
+      <li><a href="#kauf-abschliessen">Kauf abschließen – was passiert dabei?</a></li>
+      <li><a href="#kassenbuch">Kassenbuch: Anfangsbestand und Buchungen</a></li>
+      <li><a href="#kassenbestand-nachher">Kassenbestand nachher (Stückeln)</a></li>
+      <li><a href="#storno">Buchung stornieren</a></li>
+      <li><a href="#bericht-ticketbestand">Verkaufsbericht: Ticketbestand</a></li>
+      <li><a href="#bericht-zahlungsarten">Verkaufsbericht: Zahlungsarten und Vergleich</a></li>
+      <li><a href="#google-sheets">An Google Sheets senden</a></li>
+      <li><a href="#preise">Preise verwalten</a></li>
+      <li><a href="#ansicht">Ansicht: Kompakt/Ausführlich</a></li>
+      <li><a href="#mehrere-kassen">Mehrere Kassen gleichzeitig</a></li>
+      <li><a href="#kasse-wechseln">Kasse wechseln, Abmelden</a></li>
+      <li><a href="#kurzanleitung">Kurzanleitung für den Schalter</a></li>
+    </ol>
+  </div>
+
+  <div class="grundsatz">
+    <strong>Wichtiger Grundsatz</strong>
+    Jeder Standort (Neustadt, Lambrecht, Elmstein) führt sein <strong>eigenes</strong> Kassenbuch, einen
+    eigenen Ticketbestand und einen eigenen Verkaufsbericht. Die verknüpfte Fahrt (Sitzplätze,
+    Fahrgastzählung) ist dagegen für alle drei Standorte dieselbe, da sie aus der Fahrgastzählapp kommt.
+  </div>
+
+  <h2 id="anmeldung">1. Anmeldung</h2>
+  <p>Beim Öffnen der App erscheint die Anmeldung mit dem Bearbeiter-Konto – demselben Konto wie in der
+    Fahrgastzählapp.</p>
+  <ul>
+    <li><strong>E-Mail und Passwort eingeben</strong>, dann „Anmelden" antippen.</li>
+    <li>Für ein neues Konto: die Registrierung erfolgt in der <strong>Fahrgastzählapp</strong> (Adresse der
+      Domain <code>@eisenbahnmuseum-neustadt.de</code> nötig) – die Kassenapp hat kein eigenes
+      Registrierungsformular.</li>
+  </ul>
+  <div class="tipp"><strong>Tipp</strong>Die Anmeldung wird im Browser gespeichert. Auf demselben Gerät ist
+    normalerweise kein erneutes Einloggen bei jedem Öffnen nötig.</div>
+
+  <h2 id="freigabe">2. Warten auf Freigabe</h2>
+  <p>Ein neu registriertes Konto kann noch nicht sofort verkaufen. Erst muss ein Admin es freischalten
+    (<code>freigegeben</code> in der Fahrgastzählapp) – das schützt davor, dass fremde Personen mit einer
+    Museums-E-Mail unbemerkt Zugriff bekommen. Bis dahin zeigt die App „Warte auf Freigabe" mit der
+    Möglichkeit, sich abzumelden.</p>
+
+  <h2 id="standort-rolle">3. Standort und Rolle wählen</h2>
+  <p>Nach der Anmeldung wählt man zunächst den <strong>Standort</strong>:</p>
+  <table>
+    <tr><th>Standort</th><th>Besonderheit</th></tr>
+    <tr><td>Neustadt</td><td>Standard-Ticketarten</td></tr>
+    <tr><td>Lambrecht</td><td>Standard-Ticketarten</td></tr>
+    <tr><td>Elmstein</td><td>Zusätzlich „Einfache Fahrt Elmstein-Neustadt" (Erwachsene/Kind/Familie)</td></tr>
+  </table>
+  <p>Danach die <strong>Rolle</strong>:</p>
+  <ul>
+    <li><strong>Verkauf</strong> – klassischer Kassenmodus, nur Barzahlung.</li>
+    <li><strong>Verkauf &amp; Karte</strong> – für alleine Arbeitende: im Verkauf-Tab lässt sich bei jedem
+      Verkauf zwischen Bar und Karte wählen.</li>
+    <li><strong>Kartenzahlgerät</strong> – für eine zweite Person am Kartenlesegerät: derselbe
+      Verkauf-Tab, aber fest auf Karte gestellt.</li>
+  </ul>
+  <div class="wichtig"><strong>Wichtig</strong>Standort und Rolle gelten für diese Kasse/dieses Gerät und
+    werden bei jeder Buchung mit protokolliert. Beide Angaben werden im Browser gemerkt.</div>
+
+  <h2 id="fahrt-oeffnen">4. Eine Fahrt öffnen</h2>
+  <p>Darunter erscheint die Liste der in der Fahrgastzählapp bereits angelegten Fahrten (Fahrtag, Zug,
+    bisherige Fahrgastzahl). Die gewünschte Fahrt antippen – nur so kann die Kassenapp Verkäufe automatisch
+    als Fahrgäste mitzählen.</p>
+  <p>Ist noch keine passende Fahrt angelegt, lässt sich über <strong>„Fahrtag stattdessen manuell
+    eingeben"</strong> trotzdem ein Fahrtag frei wählen. Die automatische Fahrgastzählung greift dann erst,
+    sobald die passende Fahrt in der Fahrgastzählapp existiert.</p>
+  <p>Optional im Feld <strong>„Dein Name / deine Kasse"</strong> eine Bezeichnung eintragen, z. B.
+    „Schalter 1". Zum Schluss <strong>„Kasse öffnen"</strong> antippen.</p>
+
+  <h2 id="tickets-verkaufen">5. Tickets verkaufen</h2>
+  <p>Im Verkauf-Tab die gewünschten Ticketarten mit <span class="taste">−</span>/<span class="taste">+</span>
+    auswählen oder die Anzahl direkt eintippen. Die Ticketsumme wird automatisch aus den hinterlegten
+    Preisen berechnet und angezeigt.</p>
+
+  <h2 id="gutscheine">6. Gutscheine einlösen</h2>
+  <p>Unter den Tickets befindet sich der Bereich <strong>„Gutscheine eingelöst"</strong> mit eigenen
+    Zählern für Familien- und Einzelperson-Gutschein. Die App zieht deren Wert (zum Preis der jeweiligen
+    Hin- Rückfahrt-Karte) von der Ticketsumme ab und zeigt den tatsächlich <strong>zu zahlenden</strong>
+    Betrag.</p>
+  <div class="tipp"><strong>Tipp</strong>Ist der Gutschein-Wert genauso hoch wie oder höher als die
+    Ticketsumme, ist nichts mehr zu zahlen (0&nbsp;€) – der Verkauf lässt sich trotzdem abschließen.</div>
+
+  <h2 id="bar-karte">7. Bar oder Karte bezahlen</h2>
+  <p>Bei der Rolle „Verkauf &amp; Karte" zuerst <strong>Bar</strong> oder <strong>Karte</strong> wählen
+    (bei „Kartenzahlgerät" ist immer Karte aktiv, bei „Verkauf" immer Bar):</p>
+  <ul>
+    <li><strong>Bar</strong>: den vom Kunden gegebenen Betrag eingeben (Ziffernblock oder Schnellwahl-Chips
+      5/10/20/50/100&nbsp;€ bzw. „passend"). Die App zeigt sofort Rückgeld und die günstigste Stückelung
+      (welche Scheine/Münzen herauszugeben sind).</li>
+    <li><strong>Karte</strong>: Gegeben/Rückgeld entfallen, der zu zahlende Betrag wird direkt als
+      Kartenzahlung gebucht.</li>
+  </ul>
+
+  <h2 id="sitzplatz-warnung">8. Sitzplatz-Warnung</h2>
+  <p>Reicht die Sitzplatzzahl der Fahrt (aus der Fahrgastzählapp) nicht mehr für alle bisher gezählten
+    <strong>plus</strong> diesen Verkauf, erscheint vor dem Buchen ein Warn-Dialog mit der aktuellen
+    Belegung. Der Verkauf lässt sich trotzdem abschließen, wenn gewünscht.</p>
+
+  <h2 id="kauf-abschliessen">9. Kauf abschließen – was passiert dabei?</h2>
+  <p>Mit <strong>„Kauf abschließen"</strong> geschieht alles auf einmal:</p>
+  <ol>
+    <li>Der zu zahlende Betrag (nach Gutschein-Abzug) wird als Einzahlung (Bar) bzw. Kartenzahlung im
+      Kassenbuch dieser Kasse erfasst.</li>
+    <li>Der Verkauf wird je Ticketart zum vollen Preis für den Verkaufsbericht gespeichert; eingelöste
+      Gutscheine werden separat erfasst.</li>
+    <li>Die passende Anzahl Fahrgäste wird automatisch in der Fahrgastzählapp mitgezählt: Erwachsene- und
+      Kinder-Tickets als „Einzelperson", Familientickets als „Familie" (4 Personen pro Familienticket).</li>
+  </ol>
+  <div class="achtung"><strong>Achtung</strong>Läuft für den gewählten Fahrtag noch keine Zählung in der
+    Fahrgastzählapp, wird der Verkauf trotzdem gebucht – die App weist aber darauf hin, dass die
+    Fahrgastzahlen nicht aktualisiert werden konnten.</div>
+
+  <h2 id="kassenbuch">10. Kassenbuch: Anfangsbestand und Buchungen</h2>
+  <p>Anfangsbestand einmal pro Fahrtag eintragen — entweder direkt als Betrag oder über <strong>„Stückeln"</strong>:
+    Anzahl der Scheine (100/50/20/10/5&nbsp;€) und Münzen (2/1&nbsp;€, 50/20/10/5&nbsp;Ct) eintragen, die
+    App summiert automatisch. Zusätzlich lassen sich jederzeit <strong>„+ Einzahlung"</strong> /
+    <strong>„− Auszahlung"</strong> mit Betrag und Grund erfassen (z. B. Wechselgeld geholt, Trinkgeld,
+    Materialkauf).</p>
+  <p>Die App summiert automatisch: <strong>Anfangsbestand + Einzahlungen − Auszahlungen = Kassenbestand
+    (Soll)</strong>. Alle Buchungen aller Kassen desselben Standorts erscheinen live in der gemeinsamen
+    Liste.</p>
+
+  <h2 id="kassenbestand-nachher">11. Kassenbestand nachher (Stückeln)</h2>
+  <p>Am Ende des Verkaufstages im Abschnitt <strong>„Kassenbestand nachher (gezählt)"</strong> auf dieselbe
+    Art die tatsächlich gezählten Scheine/Münzen eintragen – die App zeigt sofort die Differenz zum
+    berechneten Kassenbestand (Soll) an.</p>
+
+  <h2 id="storno">12. Buchung stornieren</h2>
+  <p>Jede noch nicht stornierte Buchung (Verkauf, manuelle Ein-/Auszahlung, Kartenzahlung) lässt sich über
+    <strong>„Stornieren"</strong> rückgängig machen – nach Bestätigung.</p>
+  <div class="wichtig"><strong>Was dabei mit rückgängig gemacht wird</strong>Bei einem Ticketverkauf
+    werden automatisch auch die zugehörigen Verkaufs-/Gutschein-Einträge (verschwinden aus dem
+    Verkaufsbericht) sowie die automatisch gezählten Fahrgäste in der Fahrgastzählapp rückgängig gemacht.</div>
+  <p>Stornierte Buchungen bleiben durchgestrichen als Beleg sichtbar, zählen aber in keiner Summe
+    (Kassenbestand, Kartenzahlung, Verkaufsbericht) mehr mit.</p>
+  <div class="achtung"><strong>Achtung</strong>Ist der zugehörige Fahrtag bzw. die verknüpfte Fahrt
+    inzwischen archiviert, meldet die App das entsprechend – die Buchung selbst lässt sich weiterhin
+    stornieren, die Fahrgastzahlen aber ggf. nicht mehr automatisch anpassen.</div>
+
+  <h2 id="bericht-ticketbestand">13. Verkaufsbericht: Ticketbestand</h2>
+  <p>Für jede Ticketart <strong>Anfangsbestand</strong> und <strong>Endstand</strong> der fortlaufenden
+    Nummern auf den Fahrkarten eintragen (gilt gemeinsam für alle Kassen an diesem Standort). Die App
+    berechnet daraus automatisch die verkaufte Anzahl (Endstand − Anfangsbestand), den Umsatz je Ticketart
+    und die Gesamteinnahme. Für Gruppenverkäufe (laufen nicht über die Ticket-Auswahl) gibt es eine eigene
+    freie Betragszeile „Gruppen in &lt;Standort&gt;".</p>
+
+  <h2 id="bericht-zahlungsarten">14. Verkaufsbericht: Zahlungsarten und Vergleich</h2>
+  <p>„Absatz durch Kartenzahlung" sowie „Familien-" und „Einzelperson-Gutscheine" sind manuell editierbare
+    Felder. Daneben zeigt <strong>„Auto: …"</strong>, was die App selbst aus dem Verkauf-Tab erfasst hat –
+    ein Klick übernimmt diesen Wert ins Feld. Praktisch, wenn ein Kollege im Dienst die App nicht nutzt und
+    seine Kartenzahlungen/Gutscheine sonst nirgends erfasst würden.</p>
+  <p>Die App addiert Kartenzahlung und beide Gutschein-Beträge und zieht sie von der Gesamteinnahme ab –
+    das Ergebnis sind die erwarteten <strong>Bargeldeinnahmen</strong>. Diese werden automatisch mit der
+    Summe verglichen, die über „Kauf abschließen" bar bezahlt wurde („Bar verkauft laut Kassenapp").</p>
+  <div class="wichtig"><strong>Vorzeichen der Differenz</strong>Negativ = es fehlt Geld (weniger Bargeld
+    erfasst als laut Berechnung nötig). Positiv = mehr Bargeld vorhanden als erwartet.</div>
+  <p>Alle Zahlen im Verkaufsbericht (Ticketbestand, Gruppen-Einnahme, Kartenzahlung, Gutscheine,
+    Bemerkung) lassen sich jederzeit auch komplett von Hand eintragen bzw. korrigieren – praktisch, wenn im
+    Dienst ein Kollege mitarbeitet, der die App selbst nicht nutzen möchte.</p>
+
+  <h2 id="google-sheets">15. An Google Sheets senden</h2>
+  <p>Über <strong>„An Google Sheets senden"</strong> im Verkaufsbericht lässt sich der aktuelle Bericht per
+    Knopfdruck in ein Google Sheet übertragen: ein eigenes Tabellenblatt je Fahrtag <strong>und
+    Standort</strong> sowie eine Jahresübersicht mit einer Zeile je Fahrtag und Standort.</p>
+
+  <h2 id="preise">16. Preise verwalten</h2>
+  <p>Im Preise-Tab die Preise für alle Ticketarten eintragen — <strong>eigene Preise je Standort</strong>,
+    gelten sofort für alle Kassen an diesem Standort. Bei Standort Elmstein erscheint zusätzlich ein
+    eigener Block für die drei Elmstein-Neustadt-Ticketarten.</p>
+  <div class="achtung"><strong>Achtung</strong>Preise ändern dürfen laut den Sicherheitsregeln nur
+    Admin-Konten, nicht jedes freigeschaltete Bearbeiter-Konto.</div>
+
+  <h2 id="ansicht">17. Ansicht: Kompakt/Ausführlich</h2>
+  <p>Oben rechts lässt sich jederzeit zwischen einer <strong>kompakten</strong> Ansicht (eine Spalte,
+    reduzierte Zusatzinfos — ideal für kleine Handy-Bildschirme) und der <strong>ausführlichen</strong>
+    Ansicht (mehrspaltig, alle Details — ideal für Tablet/PC) umschalten. Die Wahl wird im Browser
+    gespeichert.</p>
+
+  <h2 id="mehrere-kassen">18. Mehrere Kassen gleichzeitig</h2>
+  <p>Alle Kassen desselben Standorts sehen dasselbe Kassenbuch, denselben Ticketbestand und denselben
+    Verkaufsbericht live. Kassen an unterschiedlichen Standorten sind komplett unabhängig voneinander –
+    nur die verknüpfte Fahrt (Sitzplätze/Fahrgastzählung) ist für alle drei Standorte gemeinsam.</p>
+
+  <h2 id="kasse-wechseln">19. Kasse wechseln, Abmelden</h2>
+  <p>Über <strong>„Kasse wechseln"</strong> (oben in der Kopfzeile) lässt sich Fahrt, Standort oder Rolle
+    ändern, ohne sich neu anzumelden. <strong>„Abmelden"</strong> beendet die Anmeldung ganz, z. B. um ein
+    anderes Konto zu verwenden.</p>
+
+  <h2 id="kurzanleitung">20. Kurzanleitung für den Schalter</h2>
+  <p>Diese Seite kann ausgedruckt und direkt am Kassenplatz ausgelegt werden.</p>
+  <ol>
+    <li>App öffnen → mit Museums-E-Mail anmelden</li>
+    <li>Standort wählen: Neustadt, Lambrecht oder Elmstein</li>
+    <li>Rolle wählen: Verkauf / Verkauf &amp; Karte / Kartenzahlgerät</li>
+    <li>Richtige Fahrt auswählen, Kasse benennen (z. B. „Schalter 1")</li>
+    <li>Tickets auswählen, ggf. Gutscheine eingeben</li>
+    <li>Bar: Betrag eingeben → Rückgeld ablesen. Karte: direkt abschließen.</li>
+    <li>„Kauf abschließen" antippen</li>
+    <li>Fehler passiert? → Buchung im Kassenbuch „Stornieren"</li>
+    <li>Am Ende des Tages: Kassenbestand stückeln, Ticketbestand (von-/bis-Nr.) im Verkaufsbericht
+      eintragen</li>
+    <li>„An Google Sheets senden", falls eingerichtet</li>
+  </ol>
+  <div class="wichtig"><strong>Bei mehreren Kassen</strong>Alle Kassen am selben Standort teilen sich
+    automatisch dasselbe Kassenbuch – nichts weiter einzustellen.</div>
+  <div class="achtung"><strong>Wichtig</strong>„Stornieren" macht eine einzelne Buchung inkl. automatischer
+    Fahrgastzählung rückgängig. Das ist keine Korrektur der gesamten Kasse, sondern immer nur der
+    ausgewählten Buchung.</div>
+
+  <p class="fusszeile">Kassenapp · Kuckucks-Bähnel</p>
+</div>
+
+<a href="#top" class="zurueck-oben" title="Nach oben">↑</a>
+</body>
+</html>

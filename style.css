@@ -190,6 +190,9 @@ input { font-family: var(--font-body); }
 
 .setup-info { margin-top: 14px; font-size: 0.82rem; color: var(--ok); min-height: 1.2em; }
 .setup-error { margin-top: 8px; font-size: 0.85rem; color: var(--alert); min-height: 1.2em; font-weight: 600; }
+.anleitung-link { text-align: center; margin-top: 18px; }
+.anleitung-link a { color: var(--ink-soft); font-size: 0.82rem; text-decoration: none; }
+.anleitung-link a:hover { text-decoration: underline; }
 
 .fahrt-list { list-style: none; margin: 0 0 8px; padding: 0; max-height: 220px; overflow-y: auto; }
 .fahrt-btn {
