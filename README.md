@@ -3,10 +3,19 @@
 Web-App für den Fahrkartenschalter, im selben Design und mit derselben
 Firebase-Datenbank wie der Fahrgastzähler. Läuft ohne Build-Schritt direkt
 im Browser (HTML/CSS/JS) und synchronisiert **live** zwischen allen
-geöffneten Kassen. Alle Bereiche (Kassenbuch, Verkaufsbericht, Ticketbestand)
-gelten gemeinsam pro Fahrtag, für alle Kassen zusammen — es gibt keinen
-Standort-Bezug mehr, da die Fahrgastzählapp Fahrten nur noch pro Fahrtag
-führt (eine Fahrt = ein Fahrtag).
+geöffneten Kassen. Kassenbuch, Ticketbestand, Verkaufsbericht und Preise
+gelten jeweils **pro Standort** (Neustadt/Lambrecht/Elmstein) — jeder
+Standort führt sein eigenes Kassenbuch. Die Fahrt selbst (Sitzplätze,
+Fahrgastzahlen) kommt weiterhin aus der Fahrgastzählapp und ist dort
+standortunabhängig, da eine Fahrt dort nur pro Fahrtag geführt wird (eine
+Fahrt = ein Fahrtag, für den ganzen Zug).
+
+Alle Zahlen lassen sich jederzeit auch komplett von Hand eintragen bzw.
+korrigieren — praktisch, wenn im Dienst ein Kollege mitarbeitet, der die App
+selbst nicht nutzen möchte: Kassenbuch-Einzahlungen/-Auszahlungen, die
+Ticket-Anfangs-/Endstände, die Gruppen-Einnahme sowie Kartenzahlung und
+Gutscheine im Verkaufsbericht sind reine Eingabefelder, die automatisch
+erfassten Werte sind nur eine Erleichterung, keine Pflicht.
 
 ## Funktionsweise
 
@@ -15,6 +24,15 @@ Beim Öffnen meldet man sich mit dem Bearbeiter-Konto (E-Mail/Passwort) aus
 der Fahrgastzählapp an. Ist das Konto noch nicht von einem Admin
 freigeschaltet, zeigt die App „Warte auf Freigabe" statt der Kasse. Über
 „Abmelden" (oben rechts) kann jederzeit ein anderes Konto verwendet werden.
+
+### Standort
+Nach der Anmeldung wählt man einen Standort: **Neustadt**, **Lambrecht**
+oder **Elmstein**. Jeder Standort hat sein eigenes Kassenbuch, einen
+eigenen Ticketbestand (von-Nr./bis-Nr.), einen eigenen Verkaufsbericht und
+eigene Ticketpreise — komplett unabhängig von den anderen beiden Standorten.
+Die verknüpfte Fahrt (Sitzplätze/Fahrgastzählung) ist dagegen dieselbe für
+alle drei Standorte, da sie aus der Fahrgastzählapp kommt und dort nicht
+nach Standort unterschieden wird.
 
 ### Rolle
 Nach der Fahrt-Auswahl wählt man eine Rolle:
@@ -83,6 +101,17 @@ Alle Buchungen aller Kassen desselben Fahrtags erscheinen live in der
 gemeinsamen Liste — jeder abgeschlossene Verkauf erscheint hier automatisch
 als Einzahlung.
 
+**Stornieren**: Jede nicht bereits stornierte Buchung (Verkauf, manuelle
+Ein-/Auszahlung, Kartenzahlung) lässt sich über „Stornieren" rückgängig
+machen — nach Bestätigung. Bei einem Ticketverkauf werden dabei automatisch
+mit rückgängig gemacht: die zugehörigen Verkaufs-/Gutschein-Einträge
+(fließen dann nicht mehr in den Verkaufsbericht ein) sowie die automatisch
+gezählten Fahrgäste in der Fahrgastzählapp (Gegenbuchung + Löschen der
+Zählereignisse dort). Stornierte Buchungen bleiben durchgestrichen als
+Beleg sichtbar, zählen aber in keiner Summe (Kassenbestand, Kartenzahlung,
+Verkaufsbericht) mehr mit. Ist der zugehörige Fahrtag/die Fahrt inzwischen
+archiviert, meldet die App das entsprechend.
+
 ### Verkaufsbericht
 Für jede Ticketart trägt man **Anfangsbestand** und **Endstand** der
 fortlaufenden Nummern auf den Fahrkarten ein (gilt gemeinsam für alle Kassen
@@ -91,15 +120,17 @@ daraus automatisch die verkaufte Anzahl (Endstand − Anfangsbestand), den
 Umsatz je Ticketart und die Gesamteinnahme. Für Gruppenverkäufe (laufen nicht
 über die Ticket-Auswahl, sondern werden nur in der Fahrgastzählapp gezählt)
 gibt es eine eigene freie Betragszeile „Gruppen in Neustadt", die ebenfalls
-in die Gesamteinnahme einfließt. „Absatz durch Kartenzahlung" wird
-automatisch aus allen im Kassenbuch erfassten Kartenzahlungen berechnet.
-„Familien-" und „Einzelperson-Gutscheine" werden automatisch aus den im
-Verkauf-Tab eingelösten Gutscheinen gezählt (kein manueller Eintrag mehr
-nötig) — ein Familien-Gutschein zählt fest zum Preis einer Hin- Rückfahrt
-Familie, ein Einzelperson-Gutschein zum Preis einer Hin- Rückfahrt
-Erwachsene (Preis kommt automatisch aus dem Preise-Tab, der Betrag wird
-direkt daneben angezeigt). Die App addiert Kartenzahlung und beide
-Gutschein-Beträge und
+in die Gesamteinnahme einfließt. „Absatz durch Kartenzahlung" sowie
+„Familien-" und „Einzelperson-Gutscheine" sind manuell editierbare Felder —
+daneben zeigt „Auto: …" jeweils, was die App selbst aus dem Verkauf-Tab
+erfasst hat, und übernimmt diesen Wert mit einem Klick ins Feld. Das lässt
+sich anschließend von Hand ergänzen, z. B. wenn ein Kollege im Dienst die
+App nicht nutzt und seine Kartenzahlungen oder eingelösten Gutscheine sonst
+nirgends erfasst würden. Ein Familien-Gutschein zählt fest zum Preis einer
+Hin- Rückfahrt Familie, ein Einzelperson-Gutschein zum Preis einer
+Hin- Rückfahrt Erwachsene (Preis kommt automatisch aus dem Preise-Tab, der
+Betrag wird direkt daneben angezeigt). Die App addiert Kartenzahlung und
+beide Gutschein-Beträge und
 zieht sie von der Gesamteinnahme ab, das Ergebnis sind die erwarteten
 **Bargeldeinnahmen**. Diese werden automatisch mit der Summe verglichen, die
 über „Kauf abschließen" **bar** bezahlt und ins Kassenbuch gebucht wurde
@@ -121,15 +152,17 @@ umschalten. Die Wahl wird im Browser gespeichert und bleibt beim nächsten
 ### Google Sheets
 Über „An Google Sheets senden" im Verkaufsbericht lässt sich der aktuelle
 Bericht per Knopfdruck in ein Google Sheet übertragen: ein eigenes
-Tabellenblatt je Fahrtag (im Stil des Papier-„Verkaufsnachweis für
-Fahrkarten") sowie eine Jahresübersicht mit einer Zeile je Fahrtag. Dafür
+Tabellenblatt je Fahrtag **und Standort** (z. B. „2026-09-01 Neustadt", im
+Stil des Papier-„Verkaufsnachweis für Fahrkarten") sowie eine
+Jahresübersicht mit einer Zeile je Fahrtag und Standort. Dafür
 muss einmalig ein Google Apps Script eingerichtet werden — siehe
 [`google-apps-script.gs`](google-apps-script.gs) und Abschnitt 3 unten.
 
 ### Preise
 Preise für alle sechs Ticketarten (Einfache Fahrt / Hin- Rückfahrt ×
-Erwachsene / Kind / Familie) — gelten sofort für alle Kassen und fließen in
-Verkauf und Verkaufsbericht ein. Einmal einrichten, danach nur bei
+Erwachsene / Kind / Familie) — **eigene Preise je Standort**, gelten sofort
+für alle Kassen an diesem Standort und fließen in Verkauf und
+Verkaufsbericht ein. Einmal pro Standort einrichten, danach nur bei
 Preisänderungen anpassen.
 
 ## 1. Anmeldung & Firebase-Projekt
@@ -231,25 +264,40 @@ Bitte `logo.png` (dieselbe Datei wie bei der Fahrgastzählapp) in den Ordner
 `assets/` kopieren. Fehlt die Datei, blendet die App das Logo automatisch
 aus, ohne Fehler anzuzeigen.
 
+Dieselbe Datei wird auch als Icon verwendet, wenn man die Seite auf dem
+Handy/Tablet **zum Startbildschirm hinzufügt** (Android „Zum Startbildschirm
+hinzufügen" bzw. iOS „Zum Home-Bildschirm"), über `manifest.json` und den
+Apple-Touch-Icon-Link in `index.html`. Für ein scharfes Ergebnis sollte
+`logo.png` möglichst quadratisch und mindestens 512×512 Pixel groß sein —
+kleinere oder nicht-quadratische Bilder werden zwar trotzdem angezeigt,
+aber ggf. leicht unscharf hochskaliert.
+
 ## Datenmodell (Firestore, neu hinzugekommen)
 
 ```
-kassenbuch/{fahrtag}                     z. B. kassenbuch/2026-09-01
-  fahrtag
+kassenbuch/{fahrtag}_{standort}          z. B. kassenbuch/2026-09-01_neustadt
+  fahrtag, standort
   anfangsbestand: 5000        (Cent, hier 50,00 €)
   anfangsbestandStueckelung: { "5000": 1, "1000": 0, ... }  (Cent-Wert -> Anzahl)
   endbestandStueckelung: { "5000": 3, "2000": 5, ... }
   endbestandGezaehlt: 51000   (Cent, Summe aus endbestandStueckelung)
   erstellt / aktualisiert: Timestamp
 
-kassenbuch/{fahrtag}/buchungen/{id}
+kassenbuch/{fahrtag}_{standort}/buchungen/{id}
   typ: "einzahlung" | "auszahlung" | "kartenzahlung"
-  betrag: 500                 (Cent, hier 5,00 €)
+  betrag: 500                 (Cent, hier 5,00 €; 0 bei komplett gutscheinfinanzierten Verkäufen)
   grund: "Verkauf: 2× Einfache Fahrt Erwachsene, 1× Hin- Rückfahrt Kind" | frei eingegeben
   kasse: "Schalter 1"
+  storniert: false
+  storniertVon / storniertZeit         (nur gesetzt, wenn storniert: true)
+  verkaufDetails: {                    (nur bei Buchungen aus dem Verkauf-Tab)
+    fahrtId, posten: [...], verkaufEintragIds: [...],
+    gutscheine: [...], gutscheinEintragIds: [...],
+    kategorieSummen: { einzelperson: 2 }, ereignisIds: [...]
+  }
   zeit: Timestamp
 
-verkaeufe/{fahrtag}/eintraege/{id}
+verkaeufe/{fahrtag}_{standort}/eintraege/{id}
   ticket: "ea" | "ra" | "ek" | "rk" | "ef" | "rf"
   anzahl: 2
   einzelpreis: 500             (Cent, Preis zum Verkaufszeitpunkt)
@@ -258,15 +306,15 @@ verkaeufe/{fahrtag}/eintraege/{id}
   zahlweise: "bar" | "karte"
   zeit: Timestamp
 
-gutscheine/{fahrtag}/eintraege/{id}
+gutscheine/{fahrtag}_{standort}/eintraege/{id}
   typ: "familie" | "einzelperson"
   anzahl: 1
   wert: 4500                   (Cent, anzahl × aktuellem Preis Hin- Rückfahrt Familie/Erwachsene)
   kasse: "Schalter 1"
   zeit: Timestamp
 
-berichte/{fahrtag}
-  fahrtag, kasse
+berichte/{fahrtag}_{standort}
+  fahrtag, standort, kasse
   ticketBestand: {
     ea: { anfang: 1200, ende: 1242 },   (fortlaufende Fahrkartennummern)
     ra: { anfang:  340, ende:  352 },
@@ -276,13 +324,15 @@ berichte/{fahrtag}
     rf: { anfang:   30, ende:   33 }
   }
   kartenzahlung: 4500        (Cent)
-  gruppenEinnahme: 8000      (Cent, frei eingetragen – "Gruppen in Neustadt")
+  gruppenEinnahme: 8000      (Cent, frei eingetragen – "Gruppen in <Standort>")
   gutscheinFamilieAnzahl: 3  (Stück, à aktuellem Preis Hin- Rückfahrt Familie)
   gutscheinEinzelAnzahl: 2   (Stück, à aktuellem Preis Hin- Rückfahrt Erwachsene)
   bemerkung: "..."
   aktualisiert: Timestamp
 
-einstellungen/preise            (ein einzelnes globales Dokument)
+einstellungen/preise-neustadt     (je ein eigenes Dokument pro Standort)
+einstellungen/preise-lambrecht
+einstellungen/preise-elmstein
   ea: 500   (Cent) — Einfache Fahrt Erwachsene
   ra: 800   — Hin- Rückfahrt Erwachsene
   ek: 300   — Einfache Fahrt Kind

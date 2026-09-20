@@ -19,20 +19,18 @@ import {
 // Firebase-Konsole -> Projekteinstellungen -> "Meine Apps" -> Web-App
 // ---------------------------------------------------------
 const firebaseConfig = {
-  apiKey: "AIzaSyCpfHTMh8zx2hmcxjF-ayIjW0lFtJcBtSM",
-  authDomain: "kuckuck-fahrkarten.firebaseapp.com",
-  databaseURL: "https://kuckuck-fahrkarten-default-rtdb.europe-west1.firebasedatabase.app",
-  projectId: "kuckuck-fahrkarten",
-  storageBucket: "kuckuck-fahrkarten.firebasestorage.app",
-  messagingSenderId: "732559401683",
-  appId: "1:732559401683:web:dbfb8ef56c85c73de46a26"
+  apiKey: "DEIN_API_KEY",
+  authDomain: "DEIN_PROJEKT.firebaseapp.com",
+  projectId: "DEIN_PROJEKT",
+  storageBucket: "DEIN_PROJEKT.appspot.com",
+  messagingSenderId: "DEINE_SENDER_ID",
+  appId: "DEINE_APP_ID"
 };
 
 // TODO: Web-App-URL des Google Apps Script (endet auf "/exec"), siehe
 // google-apps-script.gs für Code + Einrichtung. Leer lassen/Platzhalter
 // stehen lassen, um die Google-Sheets-Übertragung vorerst zu deaktivieren.
-const GOOGLE_SHEETS_WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbxCcl_HOSmDsKFRPWv6T2H2KNoYQ3N0z8EE2hI58OzYCb5ipMTTXWgxGil8RyazrWCZ/exec";
-
+const GOOGLE_SHEETS_WEBHOOK_URL = "DEINE_APPS_SCRIPT_WEB_APP_URL";
 
 const firebaseApp = initializeApp(firebaseConfig);
 const db = getFirestore(firebaseApp);
@@ -47,6 +45,7 @@ onAuthStateChanged(auth, handleAuthState);
 // Konstanten & Hilfsfunktionen
 // ---------------------------------------------------------
 const LS_KEY = "kb_kasse_session_v1";
+const STANDORT_LABEL = { neustadt: "Neustadt", lambrecht: "Lambrecht", elmstein: "Elmstein" };
 
 const MUENZEN = [
   { wert: 500, label: "500 €-Schein" },
@@ -88,8 +87,8 @@ const KASSEN_STUECKELUNG = [
 // Fahrgäste mitzählt.
 const TICKET_TYPES = [
   { key: "ea", label: "Einfache Fahrt Erwachsene", kategorie: "einzelperson", personen: 1 },
-  { key: "ek", label: "Einfache Fahrt Kind", kategorie: "einzelperson", personen: 1 },
   { key: "ra", label: "Hin- Rückfahrt Erwachsene", kategorie: "einzelperson", personen: 1 },
+  { key: "ek", label: "Einfache Fahrt Kind", kategorie: "einzelperson", personen: 1 },
   { key: "rk", label: "Hin- Rückfahrt Kind", kategorie: "einzelperson", personen: 1 },
   { key: "ef", label: "Einfache Fahrt Familie", kategorie: "familien", personen: 4 },
   { key: "rf", label: "Hin- Rückfahrt Familie", kategorie: "familien", personen: 4 }
@@ -160,12 +159,14 @@ const fahrtManuellBtn = el("fahrtManuellBtn");
 const fahrtListField = el("fahrtListField");
 const fahrtListEl = el("fahrtList");
 const rolleGroup = el("rolleGroup");
+const standortGroup = el("standortGroup");
 const kasseInput = el("kasseInput");
 const startBtn = el("startBtn");
 const setupInfo = el("setupInfo");
 const setupError = el("setupError");
 
 const fahrtagLabel = el("fahrtagLabel");
+const standortLabel = el("standortLabel");
 const kasseLabel = el("kasseLabel");
 const changeSessionBtn = el("changeSession");
 const connStatus = el("connStatus");
@@ -219,12 +220,19 @@ const endbestandHinweis = el("endbestandHinweis");
 const berichtQuelle = el("berichtQuelle");
 const berichtBody = el("berichtBody");
 const berichtGruppen = el("berichtGruppen");
+const berichtGruppenStandort = el("berichtGruppenStandort");
 const berichtGesamt = el("berichtGesamt");
 const berichtKarte = el("berichtKarte");
+const berichtKarteAuto = el("berichtKarteAuto");
+const berichtKarteAutoWert = el("berichtKarteAutoWert");
 const berichtGutscheinFamilie = el("berichtGutscheinFamilie");
 const berichtGutscheinFamilieBetrag = el("berichtGutscheinFamilieBetrag");
+const berichtGutscheinFamilieAuto = el("berichtGutscheinFamilieAuto");
+const berichtGutscheinFamilieAutoWert = el("berichtGutscheinFamilieAutoWert");
 const berichtGutscheinEinzel = el("berichtGutscheinEinzel");
 const berichtGutscheinEinzelBetrag = el("berichtGutscheinEinzelBetrag");
+const berichtGutscheinEinzelAuto = el("berichtGutscheinEinzelAuto");
+const berichtGutscheinEinzelAutoWert = el("berichtGutscheinEinzelAutoWert");
 const berichtSummeEinnahme = el("berichtSummeEinnahme");
 const berichtSummeAbzug = el("berichtSummeAbzug");
 const berichtBargeld = el("berichtBargeld");
@@ -246,6 +254,7 @@ const preisEF = el("preisEF");
 const preisRF = el("preisRF");
 const preiseSpeichern = el("preiseSpeichern");
 const preiseHinweis = el("preiseHinweis");
+const preiseStandort = el("preiseStandort");
 
 // Numpad
 const numpadOverlay = el("numpadOverlay");
@@ -261,6 +270,10 @@ const kapazitaetOverlay = el("kapazitaetOverlay");
 const kapazitaetText = el("kapazitaetText");
 const kapazitaetAbbrechen = el("kapazitaetAbbrechen");
 const kapazitaetTrotzdem = el("kapazitaetTrotzdem");
+const stornoOverlay = el("stornoOverlay");
+const stornoText = el("stornoText");
+const stornoAbbrechen = el("stornoAbbrechen");
+const stornoBestaetigen = el("stornoBestaetigen");
 
 // ---------------------------------------------------------
 // Zustand
@@ -268,6 +281,7 @@ const kapazitaetTrotzdem = el("kapazitaetTrotzdem");
 let session = null; // {fahrtag, kasse, rolle}
 let selectedFahrtId = null; // echte Dokument-ID in "fahrten" (z. B. "2026-09-01_sonderzug"), aus der Liste gewählt
 let selectedRolle = null; // 'kasse' | 'beide' | 'karte'
+let selectedStandort = null; // 'neustadt' | 'lambrecht' | 'elmstein'
 let manuellerModus = false;
 let setupInitialized = false;
 let fahrtenListe = []; // aus der Fahrgastzählapp geladene Fahrten
@@ -360,9 +374,13 @@ function initSetupScreen() {
   try { saved = JSON.parse(localStorage.getItem(LS_KEY) || "null"); } catch (e) { /* ignore */ }
   if (saved?.kasse) kasseInput.value = saved.kasse;
   if (saved?.rolle) selectRolle(saved.rolle);
+  if (saved?.standort) selectStandort(saved.standort);
 
   rolleGroup.querySelectorAll(".toggle-btn").forEach((btn) => {
     btn.addEventListener("click", () => selectRolle(btn.dataset.rolle));
+  });
+  standortGroup.querySelectorAll(".toggle-btn").forEach((btn) => {
+    btn.addEventListener("click", () => selectStandort(btn.dataset.standort));
   });
 
   fahrtManuellBtn.addEventListener("click", () => {
@@ -427,9 +445,17 @@ function selectRolle(rolle) {
   updateStartButtonState();
 }
 
+function selectStandort(standort) {
+  selectedStandort = standort;
+  standortGroup.querySelectorAll(".toggle-btn").forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.standort === standort);
+  });
+  updateStartButtonState();
+}
+
 function updateStartButtonState() {
   const hasFahrtag = manuellerModus ? !!fahrtagInput.value : !!selectedFahrtId;
-  startBtn.disabled = !(hasFahrtag && selectedRolle);
+  startBtn.disabled = !(hasFahrtag && selectedRolle && selectedStandort);
 }
 
 function showSetupError(msg) { setupError.textContent = msg; }
@@ -451,13 +477,14 @@ async function startSession() {
 
   if (!fahrtag) { showSetupError("Bitte einen Fahrtag wählen."); return; }
   if (!selectedRolle) { showSetupError("Bitte eine Rolle wählen."); return; }
+  if (!selectedStandort) { showSetupError("Bitte einen Standort wählen."); return; }
 
   startBtn.disabled = true;
   startBtn.textContent = "Verbinde…";
 
   try {
     await authReady;
-    session = { fahrtag, fahrtId, kasse, rolle: selectedRolle };
+    session = { fahrtag, fahrtId, kasse, rolle: selectedRolle, standort: selectedStandort };
     localStorage.setItem(LS_KEY, JSON.stringify(session));
     enterApp();
   } catch (err) {
@@ -476,11 +503,14 @@ function enterApp() {
   appScreen.classList.remove("hidden");
 
   fahrtagLabel.textContent = formatDateDE(session.fahrtag);
+  standortLabel.textContent = STANDORT_LABEL[session.standort] || session.standort;
   kasseLabel.textContent = session.kasse;
+  berichtGruppenStandort.textContent = STANDORT_LABEL[session.standort] || session.standort;
+  preiseStandort.textContent = STANDORT_LABEL[session.standort] || session.standort;
 
   applyRolleZuUI();
 
-  const docId = session.fahrtag; // Kassenbuch/Bericht/Verkäufe: gemeinsam pro Fahrtag, unabhängig vom Zug
+  const docId = `${session.fahrtag}_${session.standort}`; // Kassenbuch/Bericht/Verkäufe/Gutscheine: eigenes Buch je Fahrtag UND Standort
   fahrtRef = session.fahrtId ? doc(db, "fahrten", session.fahrtId) : null;
   kassenbuchRef = doc(db, "kassenbuch", docId);
   berichtRef = doc(db, "berichte", docId);
@@ -527,6 +557,7 @@ function leaveApp() {
   fahrtagInput.value = session?.fahrtag || todayISO();
   if (session?.fahrtId) { selectedFahrtId = session.fahrtId; renderFahrtList(); updateStartButtonState(); }
   if (session?.rolle) selectRolle(session.rolle);
+  if (session?.standort) selectStandort(session.standort);
   kasseInput.value = session?.kasse || "";
 }
 
@@ -549,7 +580,7 @@ tabbar.addEventListener("click", (e) => {
 // PREISE (Einstellungen)
 // ===========================================================
 function subscribePreise() {
-  const ref = doc(db, "einstellungen", "preise");
+  const ref = doc(db, "einstellungen", `preise-${session.standort}`);
   unsubPreise = onSnapshot(ref, (snap) => {
     if (snap.exists()) {
       const d = snap.data();
@@ -558,6 +589,8 @@ function subscribePreise() {
         ek: d.ek || 0, rk: d.rk || 0,
         ef: d.ef || 0, rf: d.rf || 0
       };
+    } else {
+      preise = { ea: 0, ra: 0, ek: 0, rk: 0, ef: 0, rf: 0 };
     }
     preisEA.value = (preise.ea / 100).toFixed(2).replace(".", ",");
     preisRA.value = (preise.ra / 100).toFixed(2).replace(".", ",");
@@ -578,8 +611,8 @@ preiseSpeichern.addEventListener("click", async () => {
     ef: toCents(preisEF.value), rf: toCents(preisRF.value)
   };
   try {
-    await setDoc(doc(db, "einstellungen", "preise"), { ...neu, aktualisiert: serverTimestamp() }, { merge: true });
-    preiseHinweis.textContent = "Preise gespeichert – gelten sofort für alle Kassen.";
+    await setDoc(doc(db, "einstellungen", `preise-${session.standort}`), { ...neu, aktualisiert: serverTimestamp() }, { merge: true });
+    preiseHinweis.textContent = `Preise gespeichert – gelten sofort für alle Kassen in ${STANDORT_LABEL[session.standort] || session.standort}.`;
     setTimeout(() => { preiseHinweis.textContent = ""; }, 4000);
   } catch (err) {
     preiseHinweis.textContent = err.code === "permission-denied"
@@ -787,6 +820,69 @@ function frageSitzplatzWarnung(text) {
   });
 }
 
+function frageStorno(text) {
+  stornoText.textContent = text;
+  stornoOverlay.classList.remove("hidden");
+  return new Promise((resolve) => {
+    function schliessen(ergebnis) {
+      stornoOverlay.classList.add("hidden");
+      stornoAbbrechen.removeEventListener("click", onAbbrechen);
+      stornoBestaetigen.removeEventListener("click", onBestaetigen);
+      resolve(ergebnis);
+    }
+    function onAbbrechen() { schliessen(false); }
+    function onBestaetigen() { schliessen(true); }
+    stornoAbbrechen.addEventListener("click", onAbbrechen);
+    stornoBestaetigen.addEventListener("click", onBestaetigen);
+  });
+}
+
+// Macht eine Buchung (Verkauf, Ein-/Auszahlung) rückgängig: löscht die dazu
+// erfassten Ticketverkäufe/Gutscheine, macht die automatische Fahrgastzählung
+// rückgängig (increment mit negativem Wert + Löschen der Zählereignisse) und
+// markiert die Kassenbuch-Buchung selbst als storniert (bleibt als Beleg sichtbar,
+// zählt aber in keiner Summe mehr mit).
+async function stornoBuchung(buchung, btnEl) {
+  if (buchung.storniert) return;
+  const label = buchung.grund || (buchung.typ === "einzahlung" ? "Einzahlung" : buchung.typ === "auszahlung" ? "Auszahlung" : "Kartenzahlung");
+  const bestaetigt = await frageStorno(`"${label}" über ${euro(buchung.betrag || 0)} stornieren? Verkaufte Tickets/Gutscheine und die automatische Fahrgastzählung werden dabei ebenfalls rückgängig gemacht. Das lässt sich nicht rückgängig machen.`);
+  if (!bestaetigt) return;
+
+  if (btnEl) { btnEl.disabled = true; btnEl.textContent = "Storniere…"; }
+  try {
+    const details = buchung.verkaufDetails;
+    if (details) {
+      const standortDocId = `${session.fahrtag}_${session.standort}`;
+      for (const id of details.verkaufEintragIds || []) {
+        await deleteDoc(doc(db, "verkaeufe", standortDocId, "eintraege", id)).catch(() => {});
+      }
+      for (const id of details.gutscheinEintragIds || []) {
+        await deleteDoc(doc(db, "gutscheine", standortDocId, "eintraege", id)).catch(() => {});
+      }
+      if (details.fahrtId && details.kategorieSummen) {
+        const fRef = doc(db, "fahrten", details.fahrtId);
+        try {
+          const updates = {};
+          Object.entries(details.kategorieSummen).forEach(([kat, anz]) => { updates[kat] = increment(-anz); });
+          await updateDoc(fRef, updates);
+          for (const id of details.ereignisIds || []) {
+            await deleteDoc(doc(fRef, "ereignisse", id)).catch(() => {});
+          }
+        } catch (fahrtErr) {
+          showToast("Buchung storniert, aber Fahrgastzahlen konnten nicht angepasst werden: " + fahrtErr.message);
+        }
+      }
+    }
+    await updateDoc(doc(kassenbuchRef, "buchungen", buchung.id), {
+      storniert: true, storniertZeit: serverTimestamp(), storniertVon: session.kasse
+    });
+    showToast("Storniert.");
+  } catch (err) {
+    showToast("Fehler beim Stornieren: " + err.message);
+    if (btnEl) { btnEl.disabled = false; btnEl.textContent = "Stornieren"; }
+  }
+}
+
 rgVerbuchen.addEventListener("click", async () => {
   const bruttoTotal = saleTotalCents();
   const zuZahlen = zuZahlenCents();
@@ -819,23 +915,24 @@ rgVerbuchen.addEventListener("click", async () => {
     const grundTeile = posten.map((p) => `${p.anzahl}× ${p.label}`);
     if (gutscheinPosten.length) grundTeile.push(...gutscheinPosten.map((g) => `− ${g.anzahl}× ${g.label}`));
     const grund = "Verkauf: " + grundTeile.join(", ");
-    if (zuZahlen > 0) {
-      await bucheKassenbuch(istBar ? "einzahlung" : "kartenzahlung", zuZahlen, grund);
-    }
 
-    const eintraegeRef = collection(db, "verkaeufe", session.fahrtag, "eintraege");
+    const eintraegeRef = collection(db, "verkaeufe", `${session.fahrtag}_${session.standort}`, "eintraege");
+    const verkaufEintragIds = [];
     for (const p of posten) {
-      await addDoc(eintraegeRef, {
+      const ref = await addDoc(eintraegeRef, {
         ticket: p.key, anzahl: p.anzahl, einzelpreis: preise[p.key] || 0,
         summe: p.anzahl * (preise[p.key] || 0), kasse: session.kasse, zahlweise, zeit: serverTimestamp()
       });
+      verkaufEintragIds.push(ref.id);
     }
+    const gutscheinEintragIds = [];
     if (gutscheinPosten.length) {
-      const gutscheinRef = collection(db, "gutscheine", session.fahrtag, "eintraege");
+      const gutscheinRef = collection(db, "gutscheine", `${session.fahrtag}_${session.standort}`, "eintraege");
       for (const g of gutscheinPosten) {
-        await addDoc(gutscheinRef, {
+        const ref = await addDoc(gutscheinRef, {
           typ: g.key, anzahl: g.anzahl, wert: g.wert, kasse: session.kasse, zeit: serverTimestamp()
         });
+        gutscheinEintragIds.push(ref.id);
       }
     }
 
@@ -848,17 +945,33 @@ rgVerbuchen.addEventListener("click", async () => {
     } else {
       hint = `${euro(zuZahlen)} per Karte gebucht.`;
     }
+
+    const ereignisIds = [];
     if (fahrtSnap && fahrtSnap.exists()) {
       const updates = {};
       Object.entries(kategorieSummen).forEach(([kat, anz]) => { updates[kat] = increment(anz); });
       await updateDoc(fahrtRef, updates);
       for (const [kat, anz] of Object.entries(kategorieSummen)) {
-        await addDoc(collection(fahrtRef, "ereignisse"), { kategorie: kat, anzahl: anz, kasse: session.kasse, zeit: serverTimestamp() });
+        const ref = await addDoc(collection(fahrtRef, "ereignisse"), { kategorie: kat, anzahl: anz, kasse: session.kasse, zeit: serverTimestamp() });
+        ereignisIds.push(ref.id);
       }
       rgVerbuchenHint.textContent = hint + " Fahrgäste wurden automatisch gezählt.";
     } else {
       rgVerbuchenHint.textContent = hint + " Achtung: Für diesen Fahrtag läuft noch keine Zählung in der Fahrgastzählapp – Fahrgastzahlen wurden nicht aktualisiert.";
     }
+
+    // Alles, was ein späteres "Stornieren" braucht, um Verkauf, Gutscheine
+    // und Fahrgastzählung sauber wieder rückgängig zu machen.
+    const verkaufDetails = {
+      fahrtId: (fahrtSnap && fahrtSnap.exists()) ? session.fahrtId : null,
+      posten: posten.map((p) => ({ ticket: p.key, label: p.label, anzahl: p.anzahl, einzelpreis: preise[p.key] || 0 })),
+      verkaufEintragIds,
+      gutscheine: gutscheinPosten.map((g) => ({ typ: g.key, label: g.label, anzahl: g.anzahl, wert: g.wert })),
+      gutscheinEintragIds,
+      kategorieSummen,
+      ereignisIds
+    };
+    await bucheKassenbuch(istBar ? "einzahlung" : "kartenzahlung", zuZahlen, grund, verkaufDetails);
 
     saleQty = {}; gutscheinQty = { familie: 0, einzelperson: 0 }; rgGegebenCents = 0;
     renderSaleList();
@@ -961,14 +1074,15 @@ function subscribeBuchungen() {
 }
 
 function renderKassenbuch() {
-  const einSumme = buchungenListe.filter(b => b.typ === "einzahlung").reduce((s, b) => s + (b.betrag || 0), 0);
-  const ausSumme = buchungenListe.filter(b => b.typ === "auszahlung").reduce((s, b) => s + (b.betrag || 0), 0);
+  const aktiv = buchungenListe.filter((b) => !b.storniert);
+  const einSumme = aktiv.filter(b => b.typ === "einzahlung").reduce((s, b) => s + (b.betrag || 0), 0);
+  const ausSumme = aktiv.filter(b => b.typ === "auszahlung").reduce((s, b) => s + (b.betrag || 0), 0);
   const gesamt = kassenbuchAnfangCents + einSumme - ausSumme;
   kbAnfang.textContent = euro(kassenbuchAnfangCents);
   kbEin.textContent = "+ " + euro(einSumme);
   kbAus.textContent = "− " + euro(ausSumme);
   kbTotal.textContent = euro(gesamt);
-  const kartenSumme = buchungenListe.filter(b => b.typ === "kartenzahlung").reduce((s, b) => s + (b.betrag || 0), 0);
+  const kartenSumme = aktiv.filter(b => b.typ === "kartenzahlung").reduce((s, b) => s + (b.betrag || 0), 0);
   kbKarteSumme.textContent = euro(kartenSumme);
 
   const endSumme = stueckelungSumme(endbestandCounts);
@@ -989,34 +1103,49 @@ function renderKbListe() {
     const sign = b.typ === "auszahlung" ? "−" : "+";
     const cls = b.typ === "auszahlung" ? "activity-delta-neg" : b.typ === "kartenzahlung" ? "activity-delta-karte" : "activity-delta-pos";
     const bezeichnung = b.typ === "einzahlung" ? "Einzahlung" : b.typ === "auszahlung" ? "Auszahlung" : "Kartenzahlung";
-    return `<li>
-      <span>${escapeHtml(b.kasse || "Kasse")} · ${escapeHtml(b.grund || bezeichnung)}</span>
+    const aktionEl = b.storniert
+      ? `<span class="activity-storniert-label">storniert${b.storniertVon ? " · " + escapeHtml(b.storniertVon) : ""}</span>`
+      : `<button type="button" class="activity-storno-btn" data-id="${b.id}">Stornieren</button>`;
+    return `<li class="${b.storniert ? "activity-storniert" : ""}">
+      <span class="activity-desc">${escapeHtml(b.kasse || "Kasse")} · ${escapeHtml(b.grund || bezeichnung)}</span>
       <span class="${cls}">${sign} ${euro(b.betrag || 0)}${b.typ === "kartenzahlung" ? " (Karte)" : ""}</span>
       <span class="activity-time">${formatTimeDE(b.zeit)}</span>
+      ${aktionEl}
     </li>`;
   }).join("");
+
+  kbList.querySelectorAll(".activity-storno-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const buchung = buchungenListe.find((b) => b.id === btn.dataset.id);
+      if (buchung) stornoBuchung(buchung, btn);
+    });
+  });
 }
 
-async function bucheKassenbuch(typ, betragCents, grund) {
+async function bucheKassenbuch(typ, betragCents, grund, verkaufDetails) {
   const snap = await getDoc(kassenbuchRef);
   if (!snap.exists()) {
     await setDoc(kassenbuchRef, {
-      fahrtag: session.fahrtag,
+      fahrtag: session.fahrtag, standort: session.standort,
       anfangsbestand: 0, erstellt: serverTimestamp(), aktualisiert: serverTimestamp()
     });
   } else {
     await updateDoc(kassenbuchRef, { aktualisiert: serverTimestamp() });
   }
-  await addDoc(collection(kassenbuchRef, "buchungen"), {
-    typ, betrag: betragCents, grund: grund || "", kasse: session.kasse, zeit: serverTimestamp()
+  const ref = await addDoc(collection(kassenbuchRef, "buchungen"), {
+    typ, betrag: betragCents, grund: grund || "", kasse: session.kasse,
+    storniert: false,
+    ...(verkaufDetails ? { verkaufDetails } : {}),
+    zeit: serverTimestamp()
   });
+  return ref.id;
 }
 
 anfangsbestandSpeichern.addEventListener("click", async () => {
   const cents = toCents(anfangsbestandInput.value);
   try {
     await setDoc(kassenbuchRef, {
-      fahrtag: session.fahrtag,
+      fahrtag: session.fahrtag, standort: session.standort,
       anfangsbestand: cents, anfangsbestandStueckelung: anfangsbestandCounts,
       aktualisiert: serverTimestamp()
     }, { merge: true });
@@ -1030,7 +1159,7 @@ endbestandSpeichern.addEventListener("click", async () => {
   const summe = stueckelungSumme(endbestandCounts);
   try {
     await setDoc(kassenbuchRef, {
-      fahrtag: session.fahrtag,
+      fahrtag: session.fahrtag, standort: session.standort,
       endbestandStueckelung: endbestandCounts, endbestandGezaehlt: summe,
       aktualisiert: serverTimestamp()
     }, { merge: true });
@@ -1058,6 +1187,9 @@ function subscribeBericht() {
     TICKET_TYPES.forEach((t) => { if (!ticketBestand[t.key]) ticketBestand[t.key] = {}; });
 
     berichtGruppen.value = d.gruppenEinnahme != null ? (d.gruppenEinnahme / 100).toFixed(2).replace(".", ",") : "";
+    berichtKarte.value = d.kartenzahlung != null ? (d.kartenzahlung / 100).toFixed(2).replace(".", ",") : "";
+    berichtGutscheinFamilie.value = d.gutscheinFamilieAnzahl != null ? d.gutscheinFamilieAnzahl : "";
+    berichtGutscheinEinzel.value = d.gutscheinEinzelAnzahl != null ? d.gutscheinEinzelAnzahl : "";
     if (d.bemerkung) berichtBemerkung.value = d.bemerkung;
 
     renderBericht();
@@ -1065,7 +1197,7 @@ function subscribeBericht() {
 }
 
 function subscribeVerkaeufe() {
-  const ref = collection(db, "verkaeufe", session.fahrtag, "eintraege");
+  const ref = collection(db, "verkaeufe", `${session.fahrtag}_${session.standort}`, "eintraege");
   unsubVerkaeufe = onSnapshot(ref, (snap) => {
     const sums = {};
     TICKET_TYPES.forEach((t) => { sums[t.key] = { anzahl: 0, umsatz: 0 }; });
@@ -1081,7 +1213,7 @@ function subscribeVerkaeufe() {
 }
 
 function subscribeGutscheine() {
-  const ref = collection(db, "gutscheine", session.fahrtag, "eintraege");
+  const ref = collection(db, "gutscheine", `${session.fahrtag}_${session.standort}`, "eintraege");
   unsubGutscheine = onSnapshot(ref, (snap) => {
     const sums = { familie: 0, einzelperson: 0 };
     snap.forEach((d) => {
@@ -1105,7 +1237,7 @@ function ticketVerkauft(key) {
 
 // Summe aller im Kassenbuch erfassten Kartenzahlungen (aller Kassen, heute).
 function kartenzahlungSummeCents() {
-  return buchungenListe.filter((b) => b.typ === "kartenzahlung").reduce((s, b) => s + (b.betrag || 0), 0);
+  return buchungenListe.filter((b) => b.typ === "kartenzahlung" && !b.storniert).reduce((s, b) => s + (b.betrag || 0), 0);
 }
 
 // Tatsächlich bar eingenommenes Geld aus Ticketverkäufen (heute, alle Kassen) —
@@ -1114,7 +1246,7 @@ function kartenzahlungSummeCents() {
 // der Tickets), damit es korrekt mit den erwarteten Bargeldeinnahmen vergleichbar ist.
 function verkaufBarSummeCents() {
   return buchungenListe
-    .filter((b) => b.typ === "einzahlung" && (b.grund || "").startsWith("Verkauf:"))
+    .filter((b) => b.typ === "einzahlung" && !b.storniert && (b.grund || "").startsWith("Verkauf:"))
     .reduce((s, b) => s + (b.betrag || 0), 0);
 }
 
@@ -1139,17 +1271,17 @@ function renderBericht() {
   berichtGesamt.textContent = euro(gesamteinnahme);
   berichtSummeEinnahme.textContent = euro(gesamteinnahme);
 
-  const kartenzahlungCents = kartenzahlungSummeCents();
-  berichtKarte.textContent = euro(kartenzahlungCents);
+  const kartenzahlungCents = toCents(berichtKarte.value);
+  berichtKarteAutoWert.textContent = euro(kartenzahlungSummeCents());
 
-  const gutscheinFamilieAnzahl = gutscheineSums.familie || 0;
+  const gutscheinFamilieAnzahl = Math.max(0, parseInt(berichtGutscheinFamilie.value, 10) || 0);
   const gutscheinFamilieBetrag = gutscheinFamilieAnzahl * (preise.rf || 0);
-  const gutscheinEinzelAnzahl = gutscheineSums.einzelperson || 0;
+  const gutscheinEinzelAnzahl = Math.max(0, parseInt(berichtGutscheinEinzel.value, 10) || 0);
   const gutscheinEinzelBetrag = gutscheinEinzelAnzahl * (preise.ra || 0);
-  berichtGutscheinFamilie.textContent = gutscheinFamilieAnzahl + " Stück";
-  berichtGutscheinEinzel.textContent = gutscheinEinzelAnzahl + " Stück";
   berichtGutscheinFamilieBetrag.textContent = euro(gutscheinFamilieBetrag);
   berichtGutscheinEinzelBetrag.textContent = euro(gutscheinEinzelBetrag);
+  berichtGutscheinFamilieAutoWert.textContent = gutscheineSums.familie || 0;
+  berichtGutscheinEinzelAutoWert.textContent = gutscheineSums.einzelperson || 0;
 
   const abzug = kartenzahlungCents + gutscheinFamilieBetrag + gutscheinEinzelBetrag;
   berichtSummeAbzug.textContent = euro(abzug);
@@ -1183,17 +1315,31 @@ function updateBerichtDiff(bargeldCents, appUmsatzCents) {
   berichtDiffRow.classList.toggle("diff-bad", diff !== 0);
 }
 
-berichtGruppen.addEventListener("input", renderBericht);
+[berichtGruppen, berichtKarte, berichtGutscheinFamilie, berichtGutscheinEinzel].forEach((input) => {
+  input.addEventListener("input", renderBericht);
+});
+berichtKarteAuto.addEventListener("click", () => {
+  berichtKarte.value = (kartenzahlungSummeCents() / 100).toFixed(2).replace(".", ",");
+  renderBericht();
+});
+berichtGutscheinFamilieAuto.addEventListener("click", () => {
+  berichtGutscheinFamilie.value = gutscheineSums.familie || 0;
+  renderBericht();
+});
+berichtGutscheinEinzelAuto.addEventListener("click", () => {
+  berichtGutscheinEinzel.value = gutscheineSums.einzelperson || 0;
+  renderBericht();
+});
 
 berichtSpeichern.addEventListener("click", async () => {
   try {
     await setDoc(berichtRef, {
-      fahrtag: session.fahrtag,
+      fahrtag: session.fahrtag, standort: session.standort,
       ticketBestand,
-      kartenzahlung: kartenzahlungSummeCents(),
+      kartenzahlung: toCents(berichtKarte.value),
       gruppenEinnahme: toCents(berichtGruppen.value),
-      gutscheinFamilieAnzahl: gutscheineSums.familie || 0,
-      gutscheinEinzelAnzahl: gutscheineSums.einzelperson || 0,
+      gutscheinFamilieAnzahl: Math.max(0, parseInt(berichtGutscheinFamilie.value, 10) || 0),
+      gutscheinEinzelAnzahl: Math.max(0, parseInt(berichtGutscheinEinzel.value, 10) || 0),
       bemerkung: berichtBemerkung.value.trim(),
       kasse: session.kasse, aktualisiert: serverTimestamp()
     }, { merge: true });
@@ -1217,19 +1363,19 @@ function buildBerichtPayload() {
   const gruppenEinnahme = toCents(berichtGruppen.value);
   const gesamteinnahme = zeilen.reduce((s, z) => s + (z.umsatz || 0), 0) + gruppenEinnahme;
 
-  const gutscheinFamilieAnzahl = gutscheineSums.familie || 0;
+  const gutscheinFamilieAnzahl = Math.max(0, parseInt(berichtGutscheinFamilie.value, 10) || 0);
   const gutscheinFamilieBetrag = gutscheinFamilieAnzahl * (preise.rf || 0);
-  const gutscheinEinzelAnzahl = gutscheineSums.einzelperson || 0;
+  const gutscheinEinzelAnzahl = Math.max(0, parseInt(berichtGutscheinEinzel.value, 10) || 0);
   const gutscheinEinzelBetrag = gutscheinEinzelAnzahl * (preise.ra || 0);
 
-  const kartenzahlung = kartenzahlungSummeCents();
+  const kartenzahlung = toCents(berichtKarte.value);
   const summeAbzug = kartenzahlung + gutscheinFamilieBetrag + gutscheinEinzelBetrag;
   const bargeldEinnahmen = gesamteinnahme - summeAbzug;
   const appUmsatz = verkaufBarSummeCents();
   const differenz = appUmsatz - bargeldEinnahmen;
 
   return {
-    fahrtag: session.fahrtag, kasse: session.kasse,
+    fahrtag: session.fahrtag, standort: session.standort, kasse: session.kasse,
     zeilen, gruppenEinnahme, gesamteinnahme,
     kartenzahlung,
     gutscheinFamilie: { anzahl: gutscheinFamilieAnzahl, betrag: gutscheinFamilieBetrag },
@@ -1269,17 +1415,17 @@ berichtSheetsBtn.addEventListener("click", async () => {
 });
 
 berichtCsv.addEventListener("click", async () => {
-  const zeilen = [`Verkaufsbericht ${formatDateDE(session.fahrtag)}`];
+  const zeilen = [`Verkaufsbericht ${formatDateDE(session.fahrtag)} – ${STANDORT_LABEL[session.standort] || session.standort}`];
   TICKET_TYPES.forEach((t) => {
     const b = ticketBestand[t.key] || {};
     const verkauft = ticketVerkauft(t.key);
     zeilen.push(`${t.label}: ${b.anfang != null ? b.anfang : "–"} → ${b.ende != null ? b.ende : "–"} = ${verkauft != null ? verkauft : "–"} Stück`);
   });
-  zeilen.push(`Gruppen in Neustadt: ${berichtGruppen.value || "0,00"} €`);
+  zeilen.push(`Gruppen in ${STANDORT_LABEL[session.standort] || session.standort}: ${berichtGruppen.value || "0,00"} €`);
   zeilen.push(`Gesamteinnahme: ${berichtGesamt.textContent}`);
-  zeilen.push(`Kartenzahlung: ${euro(kartenzahlungSummeCents())}`);
-  zeilen.push(`Familien-Gutscheine: ${gutscheineSums.familie || 0} Stück (${berichtGutscheinFamilieBetrag.textContent})`);
-  zeilen.push(`Einzelperson-Gutscheine: ${gutscheineSums.einzelperson || 0} Stück (${berichtGutscheinEinzelBetrag.textContent})`);
+  zeilen.push(`Kartenzahlung: ${euro(toCents(berichtKarte.value))}`);
+  zeilen.push(`Familien-Gutscheine: ${berichtGutscheinFamilie.value || "0"} Stück (${berichtGutscheinFamilieBetrag.textContent})`);
+  zeilen.push(`Einzelperson-Gutscheine: ${berichtGutscheinEinzel.value || "0"} Stück (${berichtGutscheinEinzelBetrag.textContent})`);
   zeilen.push(`Bargeldeinnahmen (erwartet): ${berichtBargeld.textContent}`);
   zeilen.push(`Bar verkauft laut Kassenapp: ${berichtAppUmsatz.textContent}`);
   zeilen.push(`Differenz (negativ = Geld fehlt): ${berichtDiff.textContent}`);

@@ -108,10 +108,10 @@ service cloud.firestore {
       allow delete: if istAdmin();
     }
 
-    // ---------------------------------------------------------
     // Globale App-Einstellungen. EIN Collection für beide Apps:
     // - Dokument "global"  -> Sitzplatz-Puffer der Fahrgastzählapp
-    // - Dokument "preise"  -> Ticketpreise der Kassenapp
+    // - Dokumente "preise-neustadt" / "preise-lambrecht" / "preise-elmstein"
+    //   -> je Standort eigene Ticketpreise der Kassenapp
     // Beide Dokumente werden ausschließlich von Admins im Admin-Bereich
     // gepflegt; alle angemeldeten Konten dürfen lesen.
     // ---------------------------------------------------------
@@ -210,7 +210,9 @@ service cloud.firestore {
 
       allow delete: if false;
 
-      // Einzelne Ein-/Auszahlungen, unveränderlich (kein nachträgliches Editieren)
+      // Einzelne Ein-/Auszahlungen. Storno geschieht per Update (nur die drei
+      // storniert*-Felder dürfen geändert werden) statt Löschen, damit die
+      // Buchung als nachvollziehbarer Beleg sichtbar bleibt.
       match /buchungen/{buchungId} {
         allow read: if request.auth != null;
 
@@ -219,12 +221,13 @@ service cloud.firestore {
           && request.resource.data.keys().hasAll(['typ', 'betrag', 'kasse'])
           && request.resource.data.typ in ['einzahlung', 'auszahlung', 'kartenzahlung']
           && request.resource.data.betrag is int
-          && request.resource.data.betrag > 0;
+          && request.resource.data.betrag >= 0;
 
-        allow update: if false;
+        allow update: if istBearbeiter()
+          && !istKassenDatumArchiviert(kassenId)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['storniert', 'storniertZeit', 'storniertVon']);
 
-        // Löschen wird für "Rückgängig" benötigt, wie bei den Zählereignissen
-        allow delete: if istBearbeiter() && !istKassenDatumArchiviert(kassenId);
+        allow delete: if false;
       }
     }
 

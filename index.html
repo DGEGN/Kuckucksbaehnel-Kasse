@@ -57,6 +57,16 @@
     <p class="setup-sub">Kuckucks-Bähnel</p>
 
     <div class="field">
+      <label>Standort</label>
+      <div class="toggle-group toggle-group-3" id="standortGroup">
+        <button type="button" class="toggle-btn" data-standort="neustadt">Neustadt</button>
+        <button type="button" class="toggle-btn" data-standort="lambrecht">Lambrecht</button>
+        <button type="button" class="toggle-btn" data-standort="elmstein">Elmstein</button>
+      </div>
+      <p class="rg-hint">Jeder Standort hat sein eigenes Kassenbuch, Ticketbestand, Verkaufsbericht und eigene Preise.</p>
+    </div>
+
+    <div class="field">
       <label>Rolle</label>
       <div class="toggle-group toggle-group-3" id="rolleGroup">
         <button type="button" class="toggle-btn" data-rolle="kasse">Verkauf</button>
@@ -107,6 +117,10 @@
       <div class="meta-block">
         <span class="meta-label">Fahrtag</span>
         <span id="fahrtagLabel" class="meta-value">–</span>
+      </div>
+      <div class="meta-block">
+        <span class="meta-label">Standort</span>
+        <span id="standortLabel" class="meta-value">–</span>
       </div>
       <div class="meta-block">
         <span class="meta-label">Kasse</span>
@@ -215,7 +229,7 @@
         <div class="panel">
           <div class="panel-head">
             <h2>Kassenstand</h2>
-            <span class="panel-sub">heute, alle Kassen</span>
+            <span class="panel-sub">heute, alle Kassen an diesem Standort</span>
           </div>
 
           <div class="kb-anfangsbestand">
@@ -260,7 +274,7 @@
         <div class="panel">
           <div class="panel-head">
             <h2>Buchungen</h2>
-            <span class="panel-sub">alle Kassen, heute</span>
+            <span class="panel-sub">alle Kassen an diesem Standort, heute</span>
           </div>
           <ul class="activity-list" id="kbList">
             <li class="activity-empty">Noch keine Buchungen heute.</li>
@@ -299,7 +313,7 @@
       <div class="panel">
         <div class="panel-head">
           <h2>Fahrkarten-Bestand</h2>
-          <span class="panel-sub" id="berichtQuelle">gilt gemeinsam für alle Kassen an diesem Fahrtag</span>
+          <span class="panel-sub" id="berichtQuelle">gilt gemeinsam für alle Kassen an diesem Standort</span>
         </div>
 
         <table class="bericht-table">
@@ -309,7 +323,7 @@
           <tbody id="berichtBody"><!-- per JS befüllt --></tbody>
           <tfoot>
             <tr>
-              <td>Gruppen in Neustadt <span class="opt">(frei, nicht über Ticket-Auswahl verkauft)</span></td>
+              <td>Gruppen in <span id="berichtGruppenStandort">Neustadt</span> <span class="opt">(frei, nicht über Ticket-Auswahl verkauft)</span></td>
               <td colspan="3"></td>
               <td></td>
               <td><input type="text" id="berichtGruppen" inputmode="decimal" placeholder="0,00"></td>
@@ -401,7 +415,7 @@
       <div class="panel preise-panel">
         <div class="panel-head">
           <h2>Ticketpreise</h2>
-          <span class="panel-sub">gelten für alle Kassen, bis geändert</span>
+          <span class="panel-sub">gelten für alle Kassen in <span id="preiseStandort">Neustadt</span>, bis geändert</span>
         </div>
 
         <div class="preise-grid">
@@ -474,6 +488,18 @@
     <div class="dialog-actions">
       <button id="kapazitaetAbbrechen" class="btn btn-ghost">Abbrechen</button>
       <button id="kapazitaetTrotzdem" class="btn btn-danger">Trotzdem verkaufen</button>
+    </div>
+  </div>
+</div>
+
+<!-- Bestätigung: Buchung/Verkauf stornieren -->
+<div id="stornoOverlay" class="dialog-overlay hidden">
+  <div class="dialog-card">
+    <p class="dialog-warn-title">Stornieren?</p>
+    <p id="stornoText"></p>
+    <div class="dialog-actions">
+      <button id="stornoAbbrechen" class="btn btn-ghost">Abbrechen</button>
+      <button id="stornoBestaetigen" class="btn btn-danger">Stornieren</button>
     </div>
   </div>
 </div>
