@@ -19,20 +19,18 @@ import {
 // Firebase-Konsole -> Projekteinstellungen -> "Meine Apps" -> Web-App
 // ---------------------------------------------------------
 const firebaseConfig = {
-  apiKey: "AIzaSyCpfHTMh8zx2hmcxjF-ayIjW0lFtJcBtSM",
-  authDomain: "kuckuck-fahrkarten.firebaseapp.com",
-  databaseURL: "https://kuckuck-fahrkarten-default-rtdb.europe-west1.firebasedatabase.app",
-  projectId: "kuckuck-fahrkarten",
-  storageBucket: "kuckuck-fahrkarten.firebasestorage.app",
-  messagingSenderId: "732559401683",
-  appId: "1:732559401683:web:dbfb8ef56c85c73de46a26"
+  apiKey: "DEIN_API_KEY",
+  authDomain: "DEIN_PROJEKT.firebaseapp.com",
+  projectId: "DEIN_PROJEKT",
+  storageBucket: "DEIN_PROJEKT.appspot.com",
+  messagingSenderId: "DEINE_SENDER_ID",
+  appId: "DEINE_APP_ID"
 };
 
 // TODO: Web-App-URL des Google Apps Script (endet auf "/exec"), siehe
 // google-apps-script.gs für Code + Einrichtung. Leer lassen/Platzhalter
 // stehen lassen, um die Google-Sheets-Übertragung vorerst zu deaktivieren.
-const GOOGLE_SHEETS_WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbxCcl_HOSmDsKFRPWv6T2H2KNoYQ3N0z8EE2hI58OzYCb5ipMTTXWgxGil8RyazrWCZ/exec";
-
+const GOOGLE_SHEETS_WEBHOOK_URL = "DEINE_APPS_SCRIPT_WEB_APP_URL";
 
 const firebaseApp = initializeApp(firebaseConfig);
 const db = getFirestore(firebaseApp);
@@ -89,8 +87,8 @@ const KASSEN_STUECKELUNG = [
 // Fahrgäste mitzählt.
 const TICKET_TYPES = [
   { key: "ea", label: "Einfache Fahrt Erwachsene", kategorie: "einzelperson", personen: 1 },
-  { key: "ek", label: "Einfache Fahrt Kind", kategorie: "einzelperson", personen: 1 },
   { key: "ra", label: "Hin- Rückfahrt Erwachsene", kategorie: "einzelperson", personen: 1 },
+  { key: "ek", label: "Einfache Fahrt Kind", kategorie: "einzelperson", personen: 1 },
   { key: "rk", label: "Hin- Rückfahrt Kind", kategorie: "einzelperson", personen: 1 },
   { key: "ef", label: "Einfache Fahrt Familie", kategorie: "familien", personen: 4 },
   { key: "rf", label: "Hin- Rückfahrt Familie", kategorie: "familien", personen: 4 }
@@ -102,6 +100,17 @@ const ELMSTEIN_TICKET_TYPES = [
   { key: "ena", label: "Einfache Fahrt Elmstein-Neustadt Erwachsene", kategorie: "einzelperson", personen: 1 },
   { key: "enk", label: "Einfache Fahrt Elmstein-Neustadt Kind", kategorie: "einzelperson", personen: 1 },
   { key: "enf", label: "Einfache Fahrt Elmstein-Neustadt Familie", kategorie: "familien", personen: 4 }
+];
+
+// Gruppenfahrkarten: kein fortlaufender Ticketbestand (keine von-/bis-Nr.), freier
+// Einzelpreis je Verkauf statt Preis aus dem Preise-Tab. Zählen als Kategorie
+// "gruppen" in der Fahrgastzählapp (wie die dortige manuelle Gruppen-Zählung).
+// Werden in dieselbe "verkaeufe"-Collection geschrieben wie normale Tickets
+// (eigene Schlüssel "ge"/"gk"), tauchen aber bewusst NICHT im Fahrkarten-Bestand
+// (von-/bis-Nr.) des Verkaufsberichts auf.
+const GRUPPEN_TICKET_TYPES = [
+  { key: "ge", label: "Gruppe Erwachsene", kategorie: "gruppen", personen: 1 },
+  { key: "gk", label: "Gruppe Kind", kategorie: "gruppen", personen: 1 }
 ];
 
 // Welche Ticketarten an der aktuellen Kasse angeboten werden — Elmstein hat
@@ -198,6 +207,8 @@ const karteBetragValue = el("karteBetragValue");
 // Verkauf
 const saleListEl = el("saleList");
 const saleTotalEl = el("saleTotal");
+const gruppenListEl = el("gruppenList");
+const gruppenSummeVerkaufEl = el("gruppenSummeVerkauf");
 const gutscheinListEl = el("gutscheinList");
 const gutscheinAbzugEl = el("gutscheinAbzug");
 const zuZahlenEl = el("zuZahlen");
@@ -236,6 +247,8 @@ const endbestandHinweis = el("endbestandHinweis");
 const berichtQuelle = el("berichtQuelle");
 const berichtBody = el("berichtBody");
 const berichtGruppen = el("berichtGruppen");
+const berichtGruppenAuto = el("berichtGruppenAuto");
+const berichtGruppenAutoWert = el("berichtGruppenAutoWert");
 const berichtGruppenStandort = el("berichtGruppenStandort");
 const berichtGesamt = el("berichtGesamt");
 const berichtKarte = el("berichtKarte");
@@ -318,6 +331,8 @@ let endbestandCounts = {}; // { "<cents>": Anzahl } – Stückelung des gezählt
 
 let saleQty = {}; // Ticketart-Schlüssel -> Anzahl im aktuellen (noch nicht abgeschlossenen) Verkauf
 let gutscheinQty = { familie: 0, einzelperson: 0 }; // eingelöste Gutscheine im aktuellen Verkauf
+let gruppenQty = { ge: 0, gk: 0 }; // Anzahl Gruppenfahrkarten im aktuellen Verkauf
+let gruppenPreis = { ge: 0, gk: 0 }; // freier Einzelpreis (Cent) im aktuellen Verkauf, nicht aus dem Preise-Tab
 let unsubGutscheine = null;
 let gutscheineSums = { familie: 0, einzelperson: 0 }; // heute eingelöst, in Stück (alle Kassen)
 let rgGegebenCents = 0;
@@ -660,6 +675,10 @@ function saleTotalCents() {
   return aktiveTicketTypes().reduce((sum, t) => sum + (saleQty[t.key] || 0) * (preise[t.key] || 0), 0);
 }
 
+function gruppenTotalCents() {
+  return GRUPPEN_TICKET_TYPES.reduce((sum, g) => sum + (gruppenQty[g.key] || 0) * (gruppenPreis[g.key] || 0), 0);
+}
+
 function gutscheinPreis(key) {
   const g = GUTSCHEIN_TYPES.find((x) => x.key === key);
   return g ? (preise[g.preisTicket] || 0) : 0;
@@ -670,7 +689,7 @@ function gutscheinAbzugCents() {
 }
 
 function zuZahlenCents() {
-  return Math.max(0, saleTotalCents() - gutscheinAbzugCents());
+  return Math.max(0, saleTotalCents() + gruppenTotalCents() - gutscheinAbzugCents());
 }
 
 function renderSaleList() {
@@ -710,7 +729,58 @@ function renderSaleList() {
   });
 
   saleTotalEl.textContent = euro(saleTotalCents());
+  renderGruppenList();
   renderGutscheinList();
+}
+
+function renderGruppenList() {
+  gruppenListEl.innerHTML = GRUPPEN_TICKET_TYPES.map((g) => {
+    const qty = gruppenQty[g.key] || 0;
+    const preisCents = gruppenPreis[g.key] || 0;
+    return `<li class="sale-row">
+      <div>
+        <span class="sale-name">${g.label}</span>
+        <span class="sale-price">
+          <input type="text" inputmode="decimal" class="sale-price-input" data-key="${g.key}"
+            value="${preisCents ? (preisCents / 100).toFixed(2).replace(".", ",") : ""}" placeholder="0,00"> € / Person
+        </span>
+      </div>
+      <div class="sale-stepper">
+        <button type="button" class="sale-step-btn" data-action="minus" data-key="${g.key}" aria-label="weniger ${g.label}">−</button>
+        <input type="text" inputmode="numeric" class="sale-qty" data-key="${g.key}" value="${qty}">
+        <button type="button" class="sale-step-btn" data-action="plus" data-key="${g.key}" aria-label="mehr ${g.label}">+</button>
+      </div>
+      <span class="sale-subtotal">${euro(qty * preisCents)}</span>
+    </li>`;
+  }).join("");
+
+  gruppenListEl.querySelectorAll(".sale-step-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const key = btn.dataset.key;
+      const delta = btn.dataset.action === "plus" ? 1 : -1;
+      gruppenQty[key] = Math.max(0, (gruppenQty[key] || 0) + delta);
+      renderGruppenList();
+      updateRgDisplay();
+    });
+  });
+  gruppenListEl.querySelectorAll(".sale-qty").forEach((input) => {
+    input.addEventListener("change", () => {
+      const key = input.dataset.key;
+      gruppenQty[key] = Math.max(0, parseInt(input.value, 10) || 0);
+      renderGruppenList();
+      updateRgDisplay();
+    });
+  });
+  gruppenListEl.querySelectorAll(".sale-price-input").forEach((input) => {
+    input.addEventListener("change", () => {
+      const key = input.dataset.key;
+      gruppenPreis[key] = toCents(input.value);
+      renderGruppenList();
+      updateRgDisplay();
+    });
+  });
+
+  gruppenSummeVerkaufEl.textContent = euro(gruppenTotalCents());
 }
 
 function renderGutscheinList() {
@@ -765,13 +835,15 @@ function setZahlweise(neu) {
 
 function updateRgDisplay() {
   saleTotalEl.textContent = euro(saleTotalCents());
+  gruppenSummeVerkaufEl.textContent = euro(gruppenTotalCents());
   gutscheinAbzugEl.textContent = "− " + euro(gutscheinAbzugCents());
   zuZahlenEl.textContent = euro(zuZahlenCents());
   const total = zuZahlenCents();
+  const bruttoGesamt = saleTotalCents() + gruppenTotalCents();
 
   if (zahlweise === "karte") {
     karteBetragValue.textContent = euro(total);
-    rgVerbuchen.disabled = !(saleTotalCents() > 0);
+    rgVerbuchen.disabled = !(bruttoGesamt > 0);
     return;
   }
 
@@ -780,7 +852,7 @@ function updateRgDisplay() {
   rgResultValue.textContent = euro(Math.abs(diff));
   rgResultLabel.textContent = diff < 0 ? "Fehlbetrag – bitte mehr verlangen" : "Rückgeld";
   rgResult.classList.toggle("rg-negativ", diff < 0);
-  rgVerbuchen.disabled = !(saleTotalCents() > 0 && diff >= 0);
+  rgVerbuchen.disabled = !(bruttoGesamt > 0 && diff >= 0);
   updateStueckelung();
 }
 
@@ -828,7 +900,8 @@ rgSchnellwahl.addEventListener("click", (e) => {
   updateRgDisplay();
 });
 rgReset.addEventListener("click", () => {
-  saleQty = {}; gutscheinQty = { familie: 0, einzelperson: 0 }; rgGegebenCents = 0;
+  saleQty = {}; gruppenQty = { ge: 0, gk: 0 }; gruppenPreis = { ge: 0, gk: 0 };
+  gutscheinQty = { familie: 0, einzelperson: 0 }; rgGegebenCents = 0;
   rgVerbuchenHint.textContent = "";
   renderSaleList();
   updateRgDisplay();
@@ -916,19 +989,22 @@ async function stornoBuchung(buchung, btnEl) {
 }
 
 rgVerbuchen.addEventListener("click", async () => {
-  const bruttoTotal = saleTotalCents();
+  const bruttoTotal = saleTotalCents() + gruppenTotalCents();
   const zuZahlen = zuZahlenCents();
   const istBar = zahlweise === "bar";
   if (!(bruttoTotal > 0 && (!istBar || rgGegebenCents >= zuZahlen))) return;
   const posten = aktiveTicketTypes().filter((t) => (saleQty[t.key] || 0) > 0).map((t) => ({ ...t, anzahl: saleQty[t.key] }));
-  if (!posten.length) return;
+  const gruppenPosten = GRUPPEN_TICKET_TYPES.filter((g) => (gruppenQty[g.key] || 0) > 0 && (gruppenPreis[g.key] || 0) > 0)
+    .map((g) => ({ ...g, anzahl: gruppenQty[g.key], einzelpreis: gruppenPreis[g.key] }));
+  if (!posten.length && !gruppenPosten.length) return;
   const gutscheinPosten = GUTSCHEIN_TYPES.filter((g) => (gutscheinQty[g.key] || 0) > 0).map((g) => ({ ...g, anzahl: gutscheinQty[g.key], wert: gutscheinQty[g.key] * gutscheinPreis(g.key) }));
 
   rgVerbuchen.disabled = true;
   try {
-    // Fahrgäste, die dieser Verkauf hinzufügen würde (Familienticket = 4 Personen)
+    // Fahrgäste, die dieser Verkauf hinzufügen würde (Familienticket = 4 Personen, Gruppenfahrkarten je 1 Person)
     const kategorieSummen = {};
     posten.forEach((p) => { kategorieSummen[p.kategorie] = (kategorieSummen[p.kategorie] || 0) + p.anzahl * (p.personen || 1); });
+    gruppenPosten.forEach((g) => { kategorieSummen[g.kategorie] = (kategorieSummen[g.kategorie] || 0) + g.anzahl * (g.personen || 1); });
     const neuePersonen = Object.values(kategorieSummen).reduce((a, b) => a + b, 0);
 
     const fahrtSnap = fahrtRef ? await getDoc(fahrtRef) : null;
@@ -945,6 +1021,7 @@ rgVerbuchen.addEventListener("click", async () => {
     }
 
     const grundTeile = posten.map((p) => `${p.anzahl}× ${p.label}`);
+    grundTeile.push(...gruppenPosten.map((g) => `${g.anzahl}× ${g.label} (${euro(g.einzelpreis)}/Person)`));
     if (gutscheinPosten.length) grundTeile.push(...gutscheinPosten.map((g) => `− ${g.anzahl}× ${g.label}`));
     const grund = "Verkauf: " + grundTeile.join(", ");
 
@@ -954,6 +1031,13 @@ rgVerbuchen.addEventListener("click", async () => {
       const ref = await addDoc(eintraegeRef, {
         ticket: p.key, anzahl: p.anzahl, einzelpreis: preise[p.key] || 0,
         summe: p.anzahl * (preise[p.key] || 0), kasse: session.kasse, zahlweise, zeit: serverTimestamp()
+      });
+      verkaufEintragIds.push(ref.id);
+    }
+    for (const g of gruppenPosten) {
+      const ref = await addDoc(eintraegeRef, {
+        ticket: g.key, anzahl: g.anzahl, einzelpreis: g.einzelpreis,
+        summe: g.anzahl * g.einzelpreis, kasse: session.kasse, zahlweise, zeit: serverTimestamp()
       });
       verkaufEintragIds.push(ref.id);
     }
@@ -996,7 +1080,8 @@ rgVerbuchen.addEventListener("click", async () => {
     // und Fahrgastzählung sauber wieder rückgängig zu machen.
     const verkaufDetails = {
       fahrtId: (fahrtSnap && fahrtSnap.exists()) ? session.fahrtId : null,
-      posten: posten.map((p) => ({ ticket: p.key, label: p.label, anzahl: p.anzahl, einzelpreis: preise[p.key] || 0 })),
+      posten: posten.map((p) => ({ ticket: p.key, label: p.label, anzahl: p.anzahl, einzelpreis: preise[p.key] || 0 }))
+        .concat(gruppenPosten.map((g) => ({ ticket: g.key, label: g.label, anzahl: g.anzahl, einzelpreis: g.einzelpreis }))),
       verkaufEintragIds,
       gutscheine: gutscheinPosten.map((g) => ({ typ: g.key, label: g.label, anzahl: g.anzahl, wert: g.wert })),
       gutscheinEintragIds,
@@ -1005,7 +1090,8 @@ rgVerbuchen.addEventListener("click", async () => {
     };
     await bucheKassenbuch(istBar ? "einzahlung" : "kartenzahlung", zuZahlen, grund, verkaufDetails);
 
-    saleQty = {}; gutscheinQty = { familie: 0, einzelperson: 0 }; rgGegebenCents = 0;
+    saleQty = {}; gruppenQty = { ge: 0, gk: 0 }; gruppenPreis = { ge: 0, gk: 0 };
+    gutscheinQty = { familie: 0, einzelperson: 0 }; rgGegebenCents = 0;
     renderSaleList();
     updateRgDisplay();
   } catch (err) {
@@ -1282,6 +1368,12 @@ function verkaufBarSummeCents() {
     .reduce((s, b) => s + (b.betrag || 0), 0);
 }
 
+// Summe der heute im Verkauf-Tab verkauften Gruppenfahrkarten (ticket "ge"/"gk"),
+// aus derselben "verkaeufe"-Collection wie die normalen Tickets.
+function gruppenVerkaufSummeCents() {
+  return (verkaeufeSums.ge ? verkaeufeSums.ge.umsatz : 0) + (verkaeufeSums.gk ? verkaeufeSums.gk.umsatz : 0);
+}
+
 function renderBericht() {
   let gesamteinnahme = 0;
   berichtBody.innerHTML = aktiveTicketTypes().map((t) => {
@@ -1302,6 +1394,7 @@ function renderBericht() {
   gesamteinnahme += toCents(berichtGruppen.value);
   berichtGesamt.textContent = euro(gesamteinnahme);
   berichtSummeEinnahme.textContent = euro(gesamteinnahme);
+  berichtGruppenAutoWert.textContent = euro(gruppenVerkaufSummeCents());
 
   const kartenzahlungCents = toCents(berichtKarte.value);
   berichtKarteAutoWert.textContent = euro(kartenzahlungSummeCents());
@@ -1352,6 +1445,10 @@ function updateBerichtDiff(bargeldCents, appUmsatzCents) {
 });
 berichtKarteAuto.addEventListener("click", () => {
   berichtKarte.value = (kartenzahlungSummeCents() / 100).toFixed(2).replace(".", ",");
+  renderBericht();
+});
+berichtGruppenAuto.addEventListener("click", () => {
+  berichtGruppen.value = (gruppenVerkaufSummeCents() / 100).toFixed(2).replace(".", ",");
   renderBericht();
 });
 berichtGutscheinFamilieAuto.addEventListener("click", () => {

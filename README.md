@@ -56,9 +56,16 @@ gemerkt.
 ### Verkauf
 Ticketart(en) und Anzahl auswählen (− / + oder direkt die Zahl eintippen) —
 die Summe (Ticketsumme) wird automatisch aus den hinterlegten Preisen
-berechnet. Darunter lassen sich **eingelöste Gutscheine** erfassen (Anzahl
+berechnet. Darunter lassen sich **Gruppenfahrkarten** erfassen (Anzahl und
+freier Einzelpreis je Person, getrennt für Erwachsene und Kind) — anders als
+die übrigen Ticketarten haben diese **keinen fortlaufenden Ticketbestand**
+(keine von-/bis-Nr.) und tauchen im Verkaufsbericht nicht in der
+Fahrkarten-Bestand-Tabelle auf, fließen aber in die Gesamteinnahme sowie die
+automatische Fahrgastzählung (als Kategorie „Gruppe") ein. Darunter lassen
+sich **eingelöste Gutscheine** erfassen (Anzahl
 Familien- bzw. Einzelperson-Gutschein, gleicher Preis wie die jeweilige
-Hin- Rückfahrt-Karte) — die App zieht deren Wert von der Ticketsumme ab und
+Hin- Rückfahrt-Karte) — die App zieht deren Wert von Ticketsumme +
+Gruppenfahrkarten ab und
 zeigt den tatsächlich **zu zahlenden** Betrag. Bei der Rolle „Verkauf &
 Karte" zuerst Bar oder Karte wählen; bei „Kartenzahlgerät" ist immer Karte
 aktiv. Bei **Bar**: den vom
@@ -67,7 +74,8 @@ Ziffernblock; Schnellwahl-Chips für 5/10/20/50/100 € oder „passend"), die
 App zeigt sofort Rückgeld **und** die günstigste Stückelung — beides auf
 Basis des Betrags nach Gutschein-Abzug. Bei **Karte**
 entfällt das, der zu zahlende Betrag wird direkt als Kartenzahlung gebucht.
-Ist der Gutschein-Wert genauso hoch wie oder höher als die Ticketsumme, ist
+Ist der Gutschein-Wert genauso hoch wie oder höher als Ticketsumme +
+Gruppenfahrkarten, ist
 nichts mehr zu zahlen (0 €) — der Verkauf lässt sich trotzdem abschließen.
 Mit „Kauf abschließen" wird der Verkauf gebucht:
 - **Warnung bei vollem Zug**: Reicht die Sitzplatzzahl der Fahrt (aus der
@@ -75,14 +83,15 @@ Mit „Kauf abschließen" wird der Verkauf gebucht:
   Verkauf, erscheint ein Warn-Dialog mit der aktuellen Belegung — Verkauf
   lässt sich trotzdem abschließen, wenn gewünscht.
 - der zu zahlende Betrag (nach Gutschein-Abzug) wird als Einzahlung (Bar)
-  bzw. Kartenzahlung im Kassenbuch dieser Kasse erfasst (bei 0 € entfällt
-  die Kassenbuch-Buchung),
-- der Verkauf wird (je Ticketart, zum vollen Preis) für den Verkaufsbericht
-  gespeichert, eingelöste Gutscheine werden separat für den automatischen
-  Gutschein-Abzug im Verkaufsbericht erfasst,
+  bzw. Kartenzahlung im Kassenbuch dieser Kasse erfasst (auch bei 0 €, als
+  Beleg für einen ggf. später nötigen Storno),
+- der Verkauf wird (je Ticketart bzw. Gruppenfahrkarte, zum vollen Preis)
+  für den Verkaufsbericht gespeichert, eingelöste Gutscheine werden separat
+  für den automatischen Gutschein-Abzug im Verkaufsbericht erfasst,
 - **die passende Anzahl Fahrgäste wird automatisch in der Fahrgastzählapp
   mitgezählt**: Erwachsene- und Kinder-Tickets als `einzelperson`,
-  Familientickets als `familien` (4 Personen pro verkauftem Familienticket)
+  Familientickets als `familien` (4 Personen pro verkauftem Familienticket),
+  Gruppenfahrkarten als `gruppen` (1 Person je Fahrkarte)
   — vorausgesetzt, für den Fahrtag existiert
   dort bereits eine Fahrt. Ist das (noch) nicht der Fall, wird der Verkauf
   trotzdem gebucht, die App weist aber darauf hin, dass die Fahrgastzahlen
@@ -123,11 +132,15 @@ Für jede Ticketart trägt man **Anfangsbestand** und **Endstand** der
 fortlaufenden Nummern auf den Fahrkarten ein (gilt gemeinsam für alle Kassen
 an diesem Fahrtag — ein Fahrkartenblock pro Ticketart). Die App berechnet
 daraus automatisch die verkaufte Anzahl (Endstand − Anfangsbestand), den
-Umsatz je Ticketart und die Gesamteinnahme. Für Gruppenverkäufe (laufen nicht
-über die Ticket-Auswahl, sondern werden nur in der Fahrgastzählapp gezählt)
-gibt es eine eigene freie Betragszeile „Gruppen in Neustadt", die ebenfalls
-in die Gesamteinnahme einfließt. „Absatz durch Kartenzahlung" sowie
-„Familien-" und „Einzelperson-Gutscheine" sind manuell editierbare Felder —
+Umsatz je Ticketart und die Gesamteinnahme. Gruppenfahrkarten (verkauft im
+Verkauf-Tab, ohne fortlaufenden Ticketbestand) erscheinen nicht in dieser
+Tabelle, sondern in der Zeile „Gruppen in <Standort>" — dort zeigt „Auto: …"
+die Summe der im Verkauf-Tab tatsächlich verkauften Gruppenfahrkarten und
+übernimmt sie mit einem Klick; das Feld bleibt trotzdem frei editierbar,
+z. B. für Gruppenverkäufe, die direkt in der Fahrgastzählapp gezählt wurden.
+„Absatz durch Kartenzahlung" sowie
+„Familien-" und „Einzelperson-Gutscheine" sind ebenfalls manuell editierbare
+Felder —
 daneben zeigt „Auto: …" jeweils, was die App selbst aus dem Verkauf-Tab
 erfasst hat, und übernimmt diesen Wert mit einem Klick ins Feld. Das lässt
 sich anschließend von Hand ergänzen, z. B. wenn ein Kollege im Dienst die
@@ -305,8 +318,12 @@ kassenbuch/{fahrtag}_{standort}/buchungen/{id}
 
 verkaeufe/{fahrtag}_{standort}/eintraege/{id}
   ticket: "ea" | "ra" | "ek" | "rk" | "ef" | "rf"
+          | "ena" | "enk" | "enf"   (nur Standort Elmstein)
+          | "ge" | "gk"             (Gruppenfahrkarte Erwachsene/Kind, kein
+                                     fortlaufender Ticketbestand, freier Preis)
   anzahl: 2
-  einzelpreis: 500             (Cent, Preis zum Verkaufszeitpunkt)
+  einzelpreis: 500             (Cent, Preis zum Verkaufszeitpunkt; bei "ge"/"gk"
+                                der frei eingegebene Einzelpreis dieses Verkaufs)
   summe: 1000                  (Cent, voller Ticketpreis, unabhängig von eingelösten Gutscheinen)
   kasse: "Schalter 1"
   zahlweise: "bar" | "karte"

@@ -161,6 +161,13 @@
             <span id="saleTotal" class="kb-mono">0,00&nbsp;€</span>
           </div>
 
+          <div class="gutschein-head">Gruppenfahrkarten <span class="opt">(kein fortlaufender Ticketbestand, freier Einzelpreis)</span></div>
+          <ul class="sale-list" id="gruppenList"><!-- per JS befüllt --></ul>
+          <div class="sale-total-row">
+            <span>+ Gruppenfahrkarten</span>
+            <span id="gruppenSummeVerkauf" class="kb-mono">0,00&nbsp;€</span>
+          </div>
+
           <div class="gutschein-head">Gutscheine eingelöst</div>
           <ul class="sale-list" id="gutscheinList"><!-- per JS befüllt --></ul>
           <div class="sale-total-row kb-minus">
@@ -325,10 +332,15 @@
           <tbody id="berichtBody"><!-- per JS befüllt --></tbody>
           <tfoot>
             <tr>
-              <td>Gruppen in <span id="berichtGruppenStandort">Neustadt</span> <span class="opt">(frei, nicht über Ticket-Auswahl verkauft)</span></td>
+              <td>Gruppen in <span id="berichtGruppenStandort">Neustadt</span> <span class="opt">(Gruppenfahrkarten, kein fortlaufender Ticketbestand)</span></td>
               <td colspan="3"></td>
               <td></td>
-              <td><input type="text" id="berichtGruppen" inputmode="decimal" placeholder="0,00"></td>
+              <td>
+                <div class="kb-anfangsbestand-row">
+                  <input type="text" id="berichtGruppen" inputmode="decimal" placeholder="0,00">
+                  <button type="button" class="btn btn-ghost btn-small" id="berichtGruppenAuto">Auto: <span id="berichtGruppenAutoWert">0,00&nbsp;€</span></button>
+                </div>
+              </td>
             </tr>
             <tr class="bericht-total-row">
               <td colspan="5">Gesamteinnahme</td>
