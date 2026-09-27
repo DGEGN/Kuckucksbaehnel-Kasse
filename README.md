@@ -17,6 +17,11 @@ Ticket-Anfangs-/Endstände, die Gruppen-Einnahme sowie Kartenzahlung und
 Gutscheine im Verkaufsbericht sind reine Eingabefelder, die automatisch
 erfassten Werte sind nur eine Erleichterung, keine Pflicht.
 
+Eine ausführliche Bedienungsanleitung für Kassenpersonal liegt als
+[`anleitung.html`](anleitung.html) bei und ist in der App selbst auf dem
+Login- und dem Kasse-öffnen-Bildschirm verlinkt („📄 Bedienungsanleitung");
+von dort führt ein „← Zurück zur Kassenapp"-Link wieder zurück.
+
 ## Funktionsweise
 
 ### Anmeldung
@@ -62,10 +67,15 @@ die übrigen Ticketarten haben diese **keinen fortlaufenden Ticketbestand**
 (keine von-/bis-Nr.) und tauchen im Verkaufsbericht nicht in der
 Fahrkarten-Bestand-Tabelle auf, fließen aber in die Gesamteinnahme sowie die
 automatische Fahrgastzählung (als Kategorie „Gruppe") ein. Darunter lassen
+sich **Artikel** erfassen (z. B. Aufkleber/Postkarte) — fester Preis wie ein
+normales Ticket (im Preise-Tab hinterlegt), aber **ohne fortlaufenden
+Ticketbestand, ohne Fahrgastzählung und ohne Aufnahme in den
+Verkaufsbericht**: der Umsatz landet stattdessen als eigene Zeile im
+Kassenbuch (siehe unten). Darunter lassen
 sich **eingelöste Gutscheine** erfassen (Anzahl
 Familien- bzw. Einzelperson-Gutschein, gleicher Preis wie die jeweilige
 Hin- Rückfahrt-Karte) — die App zieht deren Wert von Ticketsumme +
-Gruppenfahrkarten ab und
+Gruppenfahrkarten + Artikeln ab und
 zeigt den tatsächlich **zu zahlenden** Betrag. Bei der Rolle „Verkauf &
 Karte" zuerst Bar oder Karte wählen; bei „Kartenzahlgerät" ist immer Karte
 aktiv. Bei **Bar**: den vom
@@ -111,8 +121,13 @@ dieselbe Art die tatsächlich gezählten Scheine/Münzen ein — die App zeigt
 sofort die Differenz zum berechneten „Kassenbestand (Soll)" an. Zusätzlich
 „+ Einzahlung" / „− Auszahlung" mit Betrag und Grund erfassen (z. B.
 Wechselgeld geholt, Trinkgeld, Materialkauf). Die App summiert automatisch:
-**Anfangsbestand + Einzahlungen − Auszahlungen = Kassenbestand (Soll)**.
-Alle Buchungen aller Kassen desselben Fahrtags erscheinen live in der
+**Anfangsbestand + Einnahmen − Auszahlungen = Kassenbestand (Soll)** — die
+Einnahmen werden dabei zur Übersicht in zwei Zeilen aufgeteilt: „Einnahmen
+Fahrkartenverkauf" (Tickets, Gruppenfahrkarten, Gutscheinabzug bereits
+berücksichtigt) und „Einnahmen Aufkleber/Postkarte" (bar bezahlte Artikel
+aus dem Verkauf-Tab) — beide zusammen ergeben weiterhin denselben
+Gesamtbetrag wie zuvor. Alle Buchungen aller Kassen desselben Fahrtags
+erscheinen live in der
 gemeinsamen Liste — jeder abgeschlossene Verkauf erscheint hier automatisch
 als Einzahlung.
 
@@ -162,11 +177,15 @@ Bargeld vorhanden ist als erwartet. „Bericht speichern" sichert alles in
 Firestore, „als Text kopieren" erzeugt eine fertige Zusammenfassung.
 
 ### Ansicht: Kompakt / Ausführlich
-Oben rechts lässt sich jederzeit zwischen einer **kompakten** Ansicht (eine
-Spalte, reduzierte Zusatzinfos — ideal für kleine Handy-Bildschirme) und der
+Oben rechts lässt sich jederzeit zwischen einer **kompakten** Ansicht und der
 **ausführlichen** Ansicht (mehrspaltig, alle Details — ideal für Tablet/PC)
 umschalten. Die Wahl wird im Browser gespeichert und bleibt beim nächsten
-Öffnen erhalten.
+Öffnen erhalten. Die kompakte Ansicht ist gezielt für echte Handy-Bildschirme
+gebaut: Zeilen (Tickets, Gutscheine, Gruppenfahrkarten, Artikel) stapeln sich
+zweizeilig statt nebeneinander gequetscht zu werden, Tipp-Flächen (Stepper,
+Ziffernblock, Umschalter) sind größer für Finger statt Mauszeiger, und breite
+Tabellen (z. B. im Verkaufsbericht) scrollen bei Bedarf horizontal statt die
+Seite zu sprengen.
 
 ### Google Sheets
 Über „An Google Sheets senden" im Verkaufsbericht lässt sich der aktuelle
@@ -179,9 +198,12 @@ muss einmalig ein Google Apps Script eingerichtet werden — siehe
 
 ### Preise
 Preise für alle sechs Ticketarten (Einfache Fahrt / Hin- Rückfahrt ×
-Erwachsene / Kind / Familie) — **eigene Preise je Standort**, gelten sofort
+Erwachsene / Kind / Familie) sowie für „Aufkleber/Postkarte" — **eigene
+Preise je Standort**, gelten sofort
 für alle Kassen an diesem Standort und fließen in Verkauf und
-Verkaufsbericht ein. Einmal pro Standort einrichten, danach nur bei
+Verkaufsbericht ein (Aufkleber/Postkarte fließt bewusst **nicht** in den
+Verkaufsbericht ein, siehe Kassenbuch). Einmal pro Standort einrichten,
+danach nur bei
 Preisänderungen anpassen.
 
 ## 1. Anmeldung & Firebase-Projekt
@@ -321,6 +343,8 @@ verkaeufe/{fahrtag}_{standort}/eintraege/{id}
           | "ena" | "enk" | "enf"   (nur Standort Elmstein)
           | "ge" | "gk"             (Gruppenfahrkarte Erwachsene/Kind, kein
                                      fortlaufender Ticketbestand, freier Preis)
+          | "auf"                   (Artikel: Aufkleber/Postkarte, fester Preis
+                                     wie ein Ticket, aber kein Ticket — siehe unten)
   anzahl: 2
   einzelpreis: 500             (Cent, Preis zum Verkaufszeitpunkt; bei "ge"/"gk"
                                 der frei eingegebene Einzelpreis dieses Verkaufs)
@@ -328,6 +352,8 @@ verkaeufe/{fahrtag}_{standort}/eintraege/{id}
   kasse: "Schalter 1"
   zahlweise: "bar" | "karte"
   zeit: Timestamp
+  (Hinweis: "auf" zählt keine Fahrgäste und erscheint nicht im Verkaufsbericht —
+  Kassenapp wertet dafür den bar bezahlten Umsatz für die Kassenbuch-Anzeige aus)
 
 gutscheine/{fahrtag}_{standort}/eintraege/{id}
   typ: "familie" | "einzelperson"
@@ -365,6 +391,7 @@ einstellungen/preise-elmstein
   ena: ...  — nur bei preise-elmstein: Einfache Fahrt Elmstein-Neustadt Erwachsene
   enk: ...  — nur bei preise-elmstein: Einfache Fahrt Elmstein-Neustadt Kind
   enf: ...  — nur bei preise-elmstein: Einfache Fahrt Elmstein-Neustadt Familie
+  auf: 150  — Aufkleber/Postkarte
   aktualisiert: Timestamp
 ```
 

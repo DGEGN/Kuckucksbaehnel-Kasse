@@ -168,6 +168,13 @@
             <span id="gruppenSummeVerkauf" class="kb-mono">0,00&nbsp;€</span>
           </div>
 
+          <div class="gutschein-head">Artikel <span class="opt">(kein Ticket, keine Fahrgastzählung)</span></div>
+          <ul class="sale-list" id="artikelList"><!-- per JS befüllt --></ul>
+          <div class="sale-total-row">
+            <span>+ Artikel</span>
+            <span id="artikelSummeVerkauf" class="kb-mono">0,00&nbsp;€</span>
+          </div>
+
           <div class="gutschein-head">Gutscheine eingelöst</div>
           <ul class="sale-list" id="gutscheinList"><!-- per JS befüllt --></ul>
           <div class="sale-total-row kb-minus">
@@ -257,8 +264,12 @@
               <span id="kbAnfang" class="kb-mono">0,00&nbsp;€</span>
             </div>
             <div class="kb-summary-row kb-plus">
-              <span>+ Einzahlungen</span>
+              <span>+ Einnahmen Fahrkartenverkauf</span>
               <span id="kbEin" class="kb-mono">0,00&nbsp;€</span>
+            </div>
+            <div class="kb-summary-row kb-plus">
+              <span>+ Einnahmen Aufkleber/Postkarte</span>
+              <span id="kbEinArtikel" class="kb-mono">0,00&nbsp;€</span>
             </div>
             <div class="kb-summary-row kb-minus">
               <span>− Auszahlungen</span>
@@ -325,6 +336,7 @@
           <span class="panel-sub" id="berichtQuelle">gilt gemeinsam für alle Kassen an diesem Standort</span>
         </div>
 
+        <div class="bericht-table-scroll">
         <table class="bericht-table">
           <thead>
             <tr><th>Ticketart</th><th>Anfangsbestand</th><th>Endstand</th><th>Verkauft</th><th>Preis</th><th>Umsatz</th></tr>
@@ -348,6 +360,7 @@
             </tr>
           </tfoot>
         </table>
+        </div>
         <p class="rg-hint">Anfangsbestand und Endstand sind die fortlaufenden Nummern auf den Fahrkarten dieser Ticketart. Verkauft = Endstand − Anfangsbestand.</p>
       </div>
 
@@ -471,6 +484,13 @@
           <div class="field">
             <label for="preisENF">Einfache Fahrt Elmstein-Neustadt Familie</label>
             <input type="text" id="preisENF" inputmode="decimal" placeholder="0,00">
+          </div>
+        </div>
+
+        <div class="preise-grid">
+          <div class="field">
+            <label for="preisAUF">Aufkleber/Postkarte</label>
+            <input type="text" id="preisAUF" inputmode="decimal" placeholder="0,00">
           </div>
         </div>
 
