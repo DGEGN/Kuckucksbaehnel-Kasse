@@ -19,19 +19,18 @@ import {
 // Firebase-Konsole -> Projekteinstellungen -> "Meine Apps" -> Web-App
 // ---------------------------------------------------------
 const firebaseConfig = {
-  apiKey: "AIzaSyCpfHTMh8zx2hmcxjF-ayIjW0lFtJcBtSM",
-  authDomain: "kuckuck-fahrkarten.firebaseapp.com",
-  databaseURL: "https://kuckuck-fahrkarten-default-rtdb.europe-west1.firebasedatabase.app",
-  projectId: "kuckuck-fahrkarten",
-  storageBucket: "kuckuck-fahrkarten.firebasestorage.app",
-  messagingSenderId: "732559401683",
-  appId: "1:732559401683:web:dbfb8ef56c85c73de46a26"
+  apiKey: "DEIN_API_KEY",
+  authDomain: "DEIN_PROJEKT.firebaseapp.com",
+  projectId: "DEIN_PROJEKT",
+  storageBucket: "DEIN_PROJEKT.appspot.com",
+  messagingSenderId: "DEINE_SENDER_ID",
+  appId: "DEINE_APP_ID"
 };
 
 // TODO: Web-App-URL des Google Apps Script (endet auf "/exec"), siehe
 // google-apps-script.gs für Code + Einrichtung. Leer lassen/Platzhalter
 // stehen lassen, um die Google-Sheets-Übertragung vorerst zu deaktivieren.
-const GOOGLE_SHEETS_WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbxCcl_HOSmDsKFRPWv6T2H2KNoYQ3N0z8EE2hI58OzYCb5ipMTTXWgxGil8RyazrWCZ/exec";
+const GOOGLE_SHEETS_WEBHOOK_URL = "DEINE_APPS_SCRIPT_WEB_APP_URL";
 
 const firebaseApp = initializeApp(firebaseConfig);
 const db = getFirestore(firebaseApp);
@@ -88,8 +87,8 @@ const KASSEN_STUECKELUNG = [
 // Fahrgäste mitzählt.
 const TICKET_TYPES = [
   { key: "ea", label: "Einfache Fahrt Erwachsene", kategorie: "einzelperson", personen: 1 },
-  { key: "ek", label: "Einfache Fahrt Kind", kategorie: "einzelperson", personen: 1 },
   { key: "ra", label: "Hin- Rückfahrt Erwachsene", kategorie: "einzelperson", personen: 1 },
+  { key: "ek", label: "Einfache Fahrt Kind", kategorie: "einzelperson", personen: 1 },
   { key: "rk", label: "Hin- Rückfahrt Kind", kategorie: "einzelperson", personen: 1 },
   { key: "ef", label: "Einfache Fahrt Familie", kategorie: "familien", personen: 4 },
   { key: "rf", label: "Hin- Rückfahrt Familie", kategorie: "familien", personen: 4 }
@@ -1159,7 +1158,8 @@ rgVerbuchen.addEventListener("click", async () => {
       gutscheine: gutscheinPosten.map((g) => ({ typ: g.key, label: g.label, anzahl: g.anzahl, wert: g.wert })),
       gutscheinEintragIds,
       kategorieSummen,
-      ereignisIds
+      ereignisIds,
+      artikelBar: istBar ? Math.min(artikelTotalCents(), zuZahlen) : 0
     };
     await bucheKassenbuch(istBar ? "einzahlung" : "kartenzahlung", zuZahlen, grund, verkaufDetails);
 
@@ -1256,9 +1256,13 @@ function subscribeKassenbuch() {
 }
 
 function subscribeBuchungen() {
-  const q = query(collection(kassenbuchRef, "buchungen"), orderBy("zeit", "desc"), limit(50));
+  const q = query(collection(kassenbuchRef, "buchungen"), orderBy("zeit", "desc"));
   unsubBuchungen = onSnapshot(q, (snap) => {
     buchungenListe = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    // Bar bezahlter Artikelanteil (nach Gutschein-Abzug) aus den echten Buchungen
+    artikelBarUmsatz = buchungenListe
+      .filter((b) => b.typ === "einzahlung" && !b.storniert && b.verkaufDetails)
+      .reduce((s, b) => s + (b.verkaufDetails.artikelBar || 0), 0);
     renderKassenbuch();
     renderKbListe();
     renderBericht();
@@ -1296,7 +1300,7 @@ function renderKbListe() {
     kbList.innerHTML = '<li class="activity-empty">Noch keine Buchungen heute.</li>';
     return;
   }
-  kbList.innerHTML = buchungenListe.map((b) => {
+  kbList.innerHTML = buchungenListe.slice(0, 100).map((b) => {
     const sign = b.typ === "auszahlung" ? "−" : "+";
     const cls = b.typ === "auszahlung" ? "activity-delta-neg" : b.typ === "kartenzahlung" ? "activity-delta-karte" : "activity-delta-pos";
     const bezeichnung = b.typ === "einzahlung" ? "Einzahlung" : b.typ === "auszahlung" ? "Auszahlung" : "Kartenzahlung";
@@ -1409,7 +1413,6 @@ function subscribeVerkaeufe() {
       }
     });
     verkaeufeSums = sums;
-    artikelBarUmsatz = artikelBar;
     renderBericht();
     renderKassenbuch();
   }, (err) => showToast("Fehler beim Laden der Verkäufe: " + err.message));
