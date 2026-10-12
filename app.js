@@ -19,19 +19,18 @@ import {
 // Firebase-Konsole -> Projekteinstellungen -> "Meine Apps" -> Web-App
 // ---------------------------------------------------------
 const firebaseConfig = {
-  apiKey: "AIzaSyCpfHTMh8zx2hmcxjF-ayIjW0lFtJcBtSM",
-  authDomain: "kuckuck-fahrkarten.firebaseapp.com",
-  databaseURL: "https://kuckuck-fahrkarten-default-rtdb.europe-west1.firebasedatabase.app",
-  projectId: "kuckuck-fahrkarten",
-  storageBucket: "kuckuck-fahrkarten.firebasestorage.app",
-  messagingSenderId: "732559401683",
-  appId: "1:732559401683:web:dbfb8ef56c85c73de46a26"
+  apiKey: "DEIN_API_KEY",
+  authDomain: "DEIN_PROJEKT.firebaseapp.com",
+  projectId: "DEIN_PROJEKT",
+  storageBucket: "DEIN_PROJEKT.appspot.com",
+  messagingSenderId: "DEINE_SENDER_ID",
+  appId: "DEINE_APP_ID"
 };
 
 // TODO: Web-App-URL des Google Apps Script (endet auf "/exec"), siehe
 // google-apps-script.gs für Code + Einrichtung. Leer lassen/Platzhalter
 // stehen lassen, um die Google-Sheets-Übertragung vorerst zu deaktivieren.
-const GOOGLE_SHEETS_WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbxCcl_HOSmDsKFRPWv6T2H2KNoYQ3N0z8EE2hI58OzYCb5ipMTTXWgxGil8RyazrWCZ/exec";
+const GOOGLE_SHEETS_WEBHOOK_URL = "DEINE_APPS_SCRIPT_WEB_APP_URL";
 
 const firebaseApp = initializeApp(firebaseConfig);
 const db = getFirestore(firebaseApp);
@@ -1077,6 +1076,7 @@ rgVerbuchen.addEventListener("click", async () => {
   if (!posten.length && !gruppenPosten.length && !artikelPosten.length) return;
   const gutscheinPosten = GUTSCHEIN_TYPES.filter((g) => (gutscheinQty[g.key] || 0) > 0).map((g) => ({ ...g, anzahl: gutscheinQty[g.key], wert: gutscheinQty[g.key] * gutscheinPreis(g.key) }));
 
+  const gewRes = gewaehlteRes; // Kopie: der Live-Listener setzt gewaehlteRes auf null, sobald die Reservierung gelöscht wurde
   rgVerbuchen.disabled = true;
   try {
     // Fahrgäste, die dieser Verkauf hinzufügen würde (Familienticket = 4 Personen, Gruppenfahrkarten je 1 Person)
@@ -1158,20 +1158,20 @@ rgVerbuchen.addEventListener("click", async () => {
         const ref = await addDoc(collection(fahrtRef, "ereignisse"), {
           kategorie: kat, anzahl: anz, kasse: session.kasse, zeit: serverTimestamp(),
           standort: session.standort,
-          ...(kat === "gruppen" && gewaehlteRes ? {
-            gruppenName: gewaehlteRes.name,
+          ...(kat === "gruppen" && gewRes ? {
+            gruppenName: gewRes.name,
             erwachsene: (gruppenPosten.find((g) => g.key === "ge") || {}).anzahl || 0,
             kinder: (gruppenPosten.find((g) => g.key === "gk") || {}).anzahl || 0,
-            hinweis: "Reservierung: " + gewaehlteRes.name
+            hinweis: "Reservierung: " + gewRes.name
           } : {})
         });
         ereignisIds.push(ref.id);
       }
       // Gewählte Gruppenreservierung: als "angekommen" abhaken (= Reservierung löschen);
       // die tatsächliche Personenzahl wurde oben als normale Gruppen-Zählung gebucht.
-      if (gewaehlteRes && (kategorieSummen.gruppen || 0) > 0) {
-        await deleteDoc(doc(fahrtRef, "reservierungen", gewaehlteRes.id));
-        reservierungDetails = { name: gewaehlteRes.name, daten: gewaehlteRes.daten };
+      if (gewRes && (kategorieSummen.gruppen || 0) > 0) {
+        await deleteDoc(doc(fahrtRef, "reservierungen", gewRes.id));
+        reservierungDetails = { name: gewRes.name, daten: gewRes.daten };
       }
       rgVerbuchenHint.textContent = hint + " Fahrgäste wurden automatisch gezählt.";
     } else {
