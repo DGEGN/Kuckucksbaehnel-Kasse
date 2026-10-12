@@ -55,7 +55,19 @@ service cloud.firestore {
     // ID ohne "_" einfach die komplette ID zurück, funktioniert also sowohl
     // für reine Fahrtag-IDs als auch für ältere IDs mit Suffix.
     function istKassenDatumArchiviert(docId) {
-      return istDatumArchiviert(docId.split('_')[0]);
+      // Kassenbücher/Berichte/Verkäufe sind ab Mitternacht (deutsche Zeit) des
+      // Fahrtags für Normalnutzer endgültig gesperrt ("Nachtsprung").
+      // Offset: Sommerzeit (Apr–Okt) = UTC+2, sonst UTC+1 (Näherung, Umstellungs-
+      // wochenenden weichen um max. 1 Stunde ab).
+      let teile = docId.split('_')[0].split('-');
+      let versatz = (int(teile[1]) >= 4 && int(teile[1]) <= 10) ? 2 : 1;
+      let tagesende = timestamp.date(int(teile[0]), int(teile[1]), int(teile[2])) + duration.value(24 - versatz, 'h');
+      return request.time >= tagesende;
+    }
+
+    // Zeitpunkt des letzten Kassenschnitts (null, wenn noch keiner erfolgte)
+    function schnittBis(kassenId) {
+      return get(/databases/$(database)/documents/kassenbuch/$(kassenId)).data.get('schnittBis', null);
     }
 
     // ---------------------------------------------------------
@@ -206,7 +218,13 @@ service cloud.firestore {
     match /kassenbuch/{kassenId} {
       allow read: if request.auth != null;
 
-      allow create, update: if istBearbeiter() && !istKassenDatumArchiviert(kassenId);
+      allow create: if istBearbeiter() && !istKassenDatumArchiviert(kassenId);
+
+      // Der Kassenschnitt-Zeitpunkt darf nur nach vorn wandern, nie zurück/gelöscht werden
+      allow update: if istBearbeiter() && !istKassenDatumArchiviert(kassenId)
+        && (!('schnittBis' in resource.data)
+            || ('schnittBis' in request.resource.data
+                && request.resource.data.schnittBis >= resource.data.schnittBis));
 
       allow delete: if false;
 
@@ -218,13 +236,18 @@ service cloud.firestore {
 
         allow create: if istBearbeiter()
           && !istKassenDatumArchiviert(kassenId)
-          && request.resource.data.keys().hasAll(['typ', 'betrag', 'kasse'])
+          && request.resource.data.keys().hasAll(['typ', 'betrag', 'kasse', 'uid'])
+          && request.resource.data.uid == request.auth.uid
           && request.resource.data.typ in ['einzahlung', 'auszahlung', 'kartenzahlung']
           && request.resource.data.betrag is int
           && request.resource.data.betrag >= 0;
 
+        // Storno: Admins alles, normale Nutzer nur eigene Buchungen; Buchungen vor
+        // einem Kassenschnitt sind festgeschrieben.
         allow update: if istBearbeiter()
           && !istKassenDatumArchiviert(kassenId)
+          && (istAdmin() || resource.data.get('uid', '') == request.auth.uid)
+          && (schnittBis(kassenId) == null || resource.data.zeit > schnittBis(kassenId))
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['storniert', 'storniertZeit', 'storniertVon']);
 
         allow delete: if false;
@@ -279,6 +302,36 @@ service cloud.firestore {
         allow update: if false;
         allow delete: if istBearbeiter() && !istKassenDatumArchiviert(gutscheinId);
       }
+    }
+
+    // ===========================================================
+    // Revisionssicherheit: Änderungsprotokoll, Kassenschnitte und
+    // Tagesabschlüsse. Alle drei sind "append-only" – nach dem Anlegen
+    // weder änderbar noch löschbar (auch nicht für Admins).
+    // ===========================================================
+    match /aenderungslog/{logId} {
+      allow read: if request.auth != null;
+      allow create: if istBearbeiter()
+        && request.resource.data.keys().hasAll(['aktion', 'uid', 'kasse', 'fahrtag', 'standort'])
+        && request.resource.data.uid == request.auth.uid
+        && (request.resource.data.aktion != 'korrektur' || istAdmin());
+      allow update, delete: if false;
+    }
+
+    match /kassenschnitte/{docId}/schnitte/{schnittId} {
+      allow read: if request.auth != null;
+      allow create: if istBearbeiter() && !istKassenDatumArchiviert(docId)
+        && request.resource.data.uid == request.auth.uid;
+      allow update, delete: if false;
+    }
+
+    // Unveränderlicher Tagesabschluss ("Nachtsprung"): Schnappschuss des
+    // abgelaufenen Tages mit Prüfsumme. Darf erst nach Tagesende angelegt werden.
+    match /tagesabschluesse/{docId} {
+      allow read: if request.auth != null;
+      allow create: if istBearbeiter() && istKassenDatumArchiviert(docId)
+        && request.resource.data.uid == request.auth.uid;
+      allow update, delete: if false;
     }
   }
 }

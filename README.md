@@ -405,6 +405,16 @@ Fahrgastzählapp das noch nutzt — je einen Eintrag in
 Alle Beträge werden intern in **ganzen Cent** gespeichert, um
 Rundungsfehler bei Kommazahlen zu vermeiden.
 
+## Neu: Sicherheit, Kassenschnitt, Nachtsprung, Alarm
+
+- **Stornorechte:** Normale Nutzer stornieren nur eigene Buchungen (Feld `uid`), Admins (Dokument `admins/{uid}`) alle. Alte Buchungen ohne `uid` kann nur ein Admin stornieren.
+- **Änderungsprotokoll** (`aenderungslog`): append-only (Regeln verbieten Ändern/Löschen). Admins können nach dem Nachtsprung Nachträge als Protokolleintrag erfassen, die Originaldaten bleiben unverändert.
+- **Kassenschnitt** (`kassenschnitte/{Fahrtag_Standort}/schnitte`): speichert Buchungen + Kassenstand mit SHA-256-Prüfsumme und setzt `schnittBis` im Kassenbuch; Buchungen davor sind per Regel nicht mehr stornierbar.
+- **Nachtsprung:** Kassenbuch, Buchungen, Bericht, Verkäufe und Gutscheine sind per Firestore-Regel ab 0 Uhr deutscher Zeit gesperrt (Sommer UTC+2, sonst UTC+1, Näherung an den Umstellungstagen). Die erste App, die nach Mitternacht geöffnet ist/wird, legt den unveränderlichen Tagesabschluss (`tagesabschluesse`, Schnappschuss + SHA-256) an. Ohne Cloud Functions (Blaze-Tarif) läuft das clientseitig, ist aber durch die Regeln abgesichert. Für echte Rechtssicherheit (GoBD) zusätzlich Tagesabschluss/Kassenbuch regelmäßig als PDF/Sheet archivieren und mit dem Steuerberater abstimmen.
+- **Anfangsbestand:** wird automatisch aus dem gezählten Endbestand des letzten Fahrtags am selben Standort vorbelegt (änderbar).
+- **Vollbesetzt-Alarm:** Popup mit Dauerton bis „OK“. Eigene Tondatei als `alarm.mp3` in den App-Ordner legen; fehlt sie, piept die App ersatzweise. Der Ton startet erst, nachdem einmal getippt wurde (Browser-Vorgabe).
+- **Rules neu veröffentlichen!** (`firestore.rules`).
+
 ## Lokal testen
 
 ```bash

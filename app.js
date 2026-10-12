@@ -6,7 +6,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/fireba
 import {
   getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot,
   increment, collection, addDoc, serverTimestamp, query,
-  orderBy, limit, deleteDoc, getDocs
+  orderBy, limit, deleteDoc, getDocs, where
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import {
   getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged
@@ -32,7 +32,6 @@ const firebaseConfig = {
 // google-apps-script.gs für Code + Einrichtung. Leer lassen/Platzhalter
 // stehen lassen, um die Google-Sheets-Übertragung vorerst zu deaktivieren.
 const GOOGLE_SHEETS_WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbxCcl_HOSmDsKFRPWv6T2H2KNoYQ3N0z8EE2hI58OzYCb5ipMTTXWgxGil8RyazrWCZ/exec";
-
 
 const firebaseApp = initializeApp(firebaseConfig);
 const db = getFirestore(firebaseApp);
@@ -89,8 +88,8 @@ const KASSEN_STUECKELUNG = [
 // Fahrgäste mitzählt.
 const TICKET_TYPES = [
   { key: "ea", label: "Einfache Fahrt Erwachsene", kategorie: "einzelperson", personen: 1 },
-  { key: "ra", label: "Hin- Rückfahrt Erwachsene", kategorie: "einzelperson", personen: 1 },
   { key: "ek", label: "Einfache Fahrt Kind", kategorie: "einzelperson", personen: 1 },
+  { key: "ra", label: "Hin- Rückfahrt Erwachsene", kategorie: "einzelperson", personen: 1 },
   { key: "rk", label: "Hin- Rückfahrt Kind", kategorie: "einzelperson", personen: 1 },
   { key: "ef", label: "Einfache Fahrt Familie", kategorie: "familien", personen: 4 },
   { key: "rf", label: "Hin- Rückfahrt Familie", kategorie: "familien", personen: 4 }
@@ -234,6 +233,7 @@ const stueckelungList = el("stueckelungList");
 
 // Kassenbuch
 const anfangsbestandInput = el("anfangsbestandInput");
+const anfangsbestandQuelle = el("anfangsbestandQuelle");
 const anfangsbestandSpeichern = el("anfangsbestandSpeichern");
 const anfangsbestandStueckelnToggle = el("anfangsbestandStueckelnToggle");
 const anfangsbestandStueckelungGrid = el("anfangsbestandStueckelungGrid");
@@ -323,6 +323,7 @@ const stornoBestaetigen = el("stornoBestaetigen");
 // ---------------------------------------------------------
 // Zustand
 // ---------------------------------------------------------
+let currentUid = null, istAdminUser = false, tagGesperrt = false, schnittBisMs = 0;
 let session = null; // {fahrtag, kasse, rolle}
 let selectedFahrtId = null; // echte Dokument-ID in "fahrten" (z. B. "2026-09-01_sonderzug"), aus der Liste gewählt
 let selectedRolle = null; // 'kasse' | 'beide' | 'karte'
@@ -379,6 +380,8 @@ async function handleAuthState(user) {
       showOnly(warteFreigabeScreen);
       return;
     }
+    currentUid = user.uid;
+    try { istAdminUser = (await getDoc(doc(db, "admins", user.uid))).exists(); } catch (e) { istAdminUser = false; }
     showOnly(setupScreen);
     initSetupScreen();
   } catch (err) {
@@ -571,6 +574,7 @@ function enterApp() {
   subscribeBericht();
   subscribeVerkaeufe();
   subscribeGutscheine();
+  starteSicherheitsFunktionen();
   renderSaleList();
   updateRgDisplay();
 }
@@ -599,6 +603,7 @@ function applyRolleZuUI() {
 }
 
 function leaveApp() {
+  stoppeSicherheitsFunktionen();
   [unsubKassenbuch, unsubBuchungen, unsubFahrt, unsubBericht, unsubPreise, unsubVerkaeufe, unsubGutscheine].forEach((u) => u && u());
   appScreen.classList.add("hidden");
   setupScreen.classList.remove("hidden");
@@ -905,7 +910,8 @@ function updateRgDisplay() {
 
   if (zahlweise === "karte") {
     karteBetragValue.textContent = euro(total);
-    rgVerbuchen.disabled = !(bruttoGesamt > 0);
+    rgVerbuchen.disabled = tagGesperrt || !(bruttoGesamt > 0);
+    aktualisiereMobilePayBar();
     return;
   }
 
@@ -914,7 +920,8 @@ function updateRgDisplay() {
   rgResultValue.textContent = euro(Math.abs(diff));
   rgResultLabel.textContent = diff < 0 ? "Fehlbetrag – bitte mehr verlangen" : "Rückgeld";
   rgResult.classList.toggle("rg-negativ", diff < 0);
-  rgVerbuchen.disabled = !(bruttoGesamt > 0 && diff >= 0);
+  rgVerbuchen.disabled = tagGesperrt || !(bruttoGesamt > 0 && diff >= 0);
+  aktualisiereMobilePayBar();
   updateStueckelung();
 }
 
@@ -1012,6 +1019,7 @@ function frageStorno(text) {
 // zählt aber in keiner Summe mehr mit).
 async function stornoBuchung(buchung, btnEl) {
   if (buchung.storniert) return;
+  if (!(istAdminUser || (buchung.uid && buchung.uid === currentUid))) { showToast("Du kannst nur eigene Buchungen stornieren."); return; }
   const label = buchung.grund || (buchung.typ === "einzahlung" ? "Einzahlung" : buchung.typ === "auszahlung" ? "Auszahlung" : "Kartenzahlung");
   const bestaetigt = await frageStorno(`"${label}" über ${euro(buchung.betrag || 0)} stornieren? Verkaufte Tickets/Gutscheine und die automatische Fahrgastzählung werden dabei ebenfalls rückgängig gemacht. Das lässt sich nicht rückgängig machen.`);
   if (!bestaetigt) return;
@@ -1044,6 +1052,7 @@ async function stornoBuchung(buchung, btnEl) {
     await updateDoc(doc(kassenbuchRef, "buchungen", buchung.id), {
       storniert: true, storniertZeit: serverTimestamp(), storniertVon: session.kasse
     });
+    protokolliere("storno", `Storno: ${label} über ${euro(buchung.betrag || 0)} (gebucht von ${buchung.kasse || "?"})`, { buchungId: buchung.id, betrag: buchung.betrag || 0 });
     showToast("Storniert.");
   } catch (err) {
     showToast("Fehler beim Stornieren: " + err.message);
@@ -1170,6 +1179,7 @@ rgVerbuchen.addEventListener("click", async () => {
     gutscheinQty = { familie: 0, einzelperson: 0 }; rgGegebenCents = 0;
     renderSaleList();
     updateRgDisplay();
+    window.scrollTo({ top: 0, behavior: "smooth" });
   } catch (err) {
     rgVerbuchenHint.textContent = "Fehler: " + err.message;
   } finally {
@@ -1191,6 +1201,7 @@ function subscribeFahrt() {
   }
   unsubFahrt = onSnapshot(fahrtRef, (snap) => {
     setConnStatus(snap.metadata.fromCache ? "offline" : "online");
+    if (snap.exists()) pruefeVollbesetzt(snap.data());
   }, (err) => {
     setConnStatus("offline");
   });
@@ -1242,11 +1253,17 @@ function subscribeKassenbuch() {
     if (snap.exists()) {
       const d = snap.data();
       kassenbuchAnfangCents = d.anfangsbestand || 0;
+      schnittBisMs = d.schnittBis && d.schnittBis.toMillis ? d.schnittBis.toMillis() : 0;
+      anfangsbestandQuelle.textContent = d.anfangsbestandQuelle ? `(vorgeschlagen aus Endbestand vom ${formatDateDE(d.anfangsbestandQuelle)} – änderbar)` : "";
+      if (d.anfangsbestand == null) anfangsbestandVorbelegen();
       anfangsbestandInput.value = (kassenbuchAnfangCents / 100).toFixed(2).replace(".", ",");
       anfangsbestandCounts = d.anfangsbestandStueckelung || {};
       endbestandCounts = d.endbestandStueckelung || {};
     } else {
       kassenbuchAnfangCents = 0;
+      schnittBisMs = 0;
+      anfangsbestandQuelle.textContent = "";
+      anfangsbestandVorbelegen();
       anfangsbestandInput.value = "";
       anfangsbestandCounts = {};
       endbestandCounts = {};
@@ -1254,6 +1271,7 @@ function subscribeKassenbuch() {
     renderStueckelungsGrid(anfangsbestandStueckelungGrid, anfangsbestandCounts, onAnfangsbestandStueckChange);
     renderStueckelungsGrid(endbestandStueckelungGrid, endbestandCounts, onEndbestandStueckChange);
     renderKassenbuch();
+    renderKbListe();
   }, (err) => showToast("Fehler beim Laden des Kassenbuchs: " + err.message));
 }
 
@@ -1306,9 +1324,14 @@ function renderKbListe() {
     const sign = b.typ === "auszahlung" ? "−" : "+";
     const cls = b.typ === "auszahlung" ? "activity-delta-neg" : b.typ === "kartenzahlung" ? "activity-delta-karte" : "activity-delta-pos";
     const bezeichnung = b.typ === "einzahlung" ? "Einzahlung" : b.typ === "auszahlung" ? "Auszahlung" : "Kartenzahlung";
+    const zeitMs = b.zeit && b.zeit.toMillis ? b.zeit.toMillis() : Infinity;
+    const festgeschrieben = zeitMs <= schnittBisMs;
+    const darfStorno = !tagGesperrt && !festgeschrieben && (istAdminUser || (b.uid && b.uid === currentUid));
     const aktionEl = b.storniert
       ? `<span class="activity-storniert-label">storniert${b.storniertVon ? " · " + escapeHtml(b.storniertVon) : ""}</span>`
-      : `<button type="button" class="activity-storno-btn" data-id="${b.id}">Stornieren</button>`;
+      : darfStorno
+        ? `<button type="button" class="activity-storno-btn" data-id="${b.id}">Stornieren</button>`
+        : `<span class="activity-storniert-label">${festgeschrieben ? "🔒 Kassenschnitt" : tagGesperrt ? "🔒 abgeschlossen" : "nur Ersteller/Admin"}</span>`;
     return `<li class="${b.storniert ? "activity-storniert" : ""}">
       <span class="activity-desc">${escapeHtml(b.kasse || "Kasse")} · ${escapeHtml(b.grund || bezeichnung)}</span>
       <span class="${cls}">${sign} ${euro(b.betrag || 0)}${b.typ === "kartenzahlung" ? " (Karte)" : ""}</span>
@@ -1330,13 +1353,13 @@ async function bucheKassenbuch(typ, betragCents, grund, verkaufDetails) {
   if (!snap.exists()) {
     await setDoc(kassenbuchRef, {
       fahrtag: session.fahrtag, standort: session.standort,
-      anfangsbestand: 0, erstellt: serverTimestamp(), aktualisiert: serverTimestamp()
+      erstellt: serverTimestamp(), aktualisiert: serverTimestamp()
     });
   } else {
     await updateDoc(kassenbuchRef, { aktualisiert: serverTimestamp() });
   }
   const ref = await addDoc(collection(kassenbuchRef, "buchungen"), {
-    typ, betrag: betragCents, grund: grund || "", kasse: session.kasse,
+    typ, betrag: betragCents, grund: grund || "", kasse: session.kasse, uid: currentUid,
     storniert: false,
     ...(verkaufDetails ? { verkaufDetails } : {}),
     zeit: serverTimestamp()
@@ -1350,8 +1373,10 @@ anfangsbestandSpeichern.addEventListener("click", async () => {
     await setDoc(kassenbuchRef, {
       fahrtag: session.fahrtag, standort: session.standort,
       anfangsbestand: cents, anfangsbestandStueckelung: anfangsbestandCounts,
+      anfangsbestandQuelle: null,
       aktualisiert: serverTimestamp()
     }, { merge: true });
+    protokolliere("anfangsbestand", `Anfangsbestand gesetzt: ${euro(cents)} (vorher ${euro(kassenbuchAnfangCents)})`);
     showToast("Anfangsbestand gespeichert: " + euro(cents));
   } catch (err) {
     showToast("Fehler: " + err.message);
@@ -1366,6 +1391,7 @@ endbestandSpeichern.addEventListener("click", async () => {
       endbestandStueckelung: endbestandCounts, endbestandGezaehlt: summe,
       aktualisiert: serverTimestamp()
     }, { merge: true });
+    protokolliere("endbestand", `Gezählter Endbestand gespeichert: ${euro(summe)}`);
     endbestandHinweis.textContent = "Gezählter Endbestand gespeichert: " + euro(summe);
     setTimeout(() => { endbestandHinweis.textContent = ""; }, 4000);
   } catch (err) {
@@ -1714,6 +1740,7 @@ function showToast(msg) {
 
 changeSessionBtn.addEventListener("click", leaveApp);
 logoutBtn.addEventListener("click", () => {
+  stoppeSicherheitsFunktionen();
   [unsubKassenbuch, unsubBuchungen, unsubFahrt, unsubBericht, unsubPreise, unsubVerkaeufe, unsubGutscheine].forEach((u) => u && u());
   logout();
 });
@@ -1744,3 +1771,284 @@ function initViewToggle() {
 // ---------------------------------------------------------
 initSetupScreen();
 initViewToggle();
+
+
+// ===========================================================
+// SICHERHEIT & REVISION: Protokoll, Kassenschnitt, Tagesabschluss
+// ===========================================================
+const kassenschnittBtn = el("kassenschnittBtn");
+const kassenschnittListe = el("kassenschnittListe");
+const logListe = el("logListe");
+const korrekturBereich = el("korrekturBereich");
+const korrekturText = el("korrekturText");
+const korrekturSpeichern = el("korrekturSpeichern");
+let unsubLog = null, unsubSchnitte = null, nachtTimer = null, tagesabschlussLaeuft = false;
+let anfangsVorbelegtFuer = null;
+
+function berlinHeute() {
+  return new Intl.DateTimeFormat("sv-SE", { timeZone: "Europe/Berlin" }).format(new Date());
+}
+
+async function sha256Hex(text) {
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
+  return Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+function jsonSicher(obj) {
+  return JSON.stringify(obj, (k, v) => (v && typeof v === "object" && typeof v.toDate === "function") ? v.toDate().toISOString() : v);
+}
+
+// Unveränderliches Änderungsprotokoll (append-only, siehe firestore.rules)
+function protokolliere(aktion, text, extra) {
+  if (!session) return;
+  addDoc(collection(db, "aenderungslog"), {
+    aktion, text, uid: currentUid, kasse: session.kasse,
+    fahrtag: session.fahrtag, standort: session.standort,
+    zeit: serverTimestamp(), ...(extra || {})
+  }).catch((err) => console.warn("Protokoll fehlgeschlagen:", err));
+}
+
+function starteSicherheitsFunktionen() {
+  korrekturBereich.classList.toggle("hidden", !istAdminUser);
+
+  unsubLog = onSnapshot(query(collection(db, "aenderungslog"),
+    where("fahrtag", "==", session.fahrtag), where("standort", "==", session.standort)), (snap) => {
+    const liste = snap.docs.map((d) => d.data()).sort((a, b) => (b.zeit?.toMillis?.() || Infinity) - (a.zeit?.toMillis?.() || Infinity));
+    logListe.innerHTML = liste.length ? liste.map((l) => `<li>
+      <span class="activity-desc">${escapeHtml(l.kasse || "")} · ${l.aktion === "korrektur" ? "<strong>NACHTRAG</strong> · " : ""}${escapeHtml(l.text || l.aktion)}</span>
+      <span class="activity-time">${formatTimeDE(l.zeit)}</span></li>`).join("")
+      : '<li class="activity-empty">Noch keine Einträge.</li>';
+  }, () => {});
+
+  unsubSchnitte = onSnapshot(query(collection(db, "kassenschnitte", `${session.fahrtag}_${session.standort}`, "schnitte"), orderBy("zeit", "desc")), (snap) => {
+    kassenschnittListe.innerHTML = snap.docs.map((d) => {
+      const x = d.data();
+      return `<li><span class="activity-desc">Schnitt ${x.nr} · ${escapeHtml(x.kasse || "")} · Soll ${euro(x.soll || 0)}${x.gezaehlt != null ? " · gezählt " + euro(x.gezaehlt) : ""}</span>
+        <span class="activity-time">${formatTimeDE(x.zeit)}</span></li>`;
+    }).join("");
+  }, () => {});
+
+  pruefeTagesende();
+  nachtTimer = setInterval(pruefeTagesende, 30000);
+}
+
+function stoppeSicherheitsFunktionen() {
+  [unsubLog, unsubSchnitte].forEach((u) => u && u());
+  unsubLog = unsubSchnitte = null;
+  clearInterval(nachtTimer); nachtTimer = null;
+  tagGesperrt = false;
+  document.body.classList.remove("tag-gesperrt");
+  const b = document.getElementById("gesperrtBanner"); if (b) b.remove();
+  stoppeAlarm();
+  vollAktiv = false;
+}
+
+korrekturSpeichern.addEventListener("click", () => {
+  const t = korrekturText.value.trim();
+  if (!t) { showToast("Bitte eine Begründung eingeben."); return; }
+  protokolliere("korrektur", t);
+  korrekturText.value = "";
+  showToast("Nachtrag protokolliert.");
+});
+
+// ---- Nachtsprung: gesperrter Tag + unveränderlicher Tagesabschluss ----
+function pruefeTagesende() {
+  if (!session) return;
+  const vorbei = berlinHeute() > session.fahrtag;
+  if (vorbei && !tagGesperrt) {
+    tagGesperrt = true;
+    document.body.classList.add("tag-gesperrt");
+    if (!document.getElementById("gesperrtBanner")) {
+      const b = document.createElement("div");
+      b.id = "gesperrtBanner";
+      b.className = "gesperrt-banner";
+      b.textContent = "🔒 Dieser Fahrtag ist abgeschlossen (Nachtsprung). Buchungen und Kassenbuch sind nur noch lesbar. Nachträge können nur Admins als Protokolleintrag erfassen.";
+      document.querySelector("main")?.prepend(b);
+    }
+    updateRgDisplay();
+    renderKbListe();
+  }
+  if (vorbei) erstelleTagesabschluss();
+}
+
+async function erstelleTagesabschluss() {
+  if (tagesabschlussLaeuft) return;
+  tagesabschlussLaeuft = true;
+  try {
+    const id = `${session.fahrtag}_${session.standort}`;
+    const abRef = doc(db, "tagesabschluesse", id);
+    if ((await getDoc(abRef)).exists()) return;
+    const [kb, bu, be, ve, gu] = await Promise.all([
+      getDoc(kassenbuchRef),
+      getDocs(collection(kassenbuchRef, "buchungen")),
+      getDoc(berichtRef),
+      getDocs(collection(db, "verkaeufe", id, "eintraege")),
+      getDocs(collection(db, "gutscheine", id, "eintraege"))
+    ]);
+    const daten = jsonSicher({
+      version: 1, fahrtag: session.fahrtag, standort: session.standort,
+      kassenbuch: kb.exists() ? kb.data() : null,
+      buchungen: bu.docs.map((d) => ({ id: d.id, ...d.data() })),
+      bericht: be.exists() ? be.data() : null,
+      verkaeufe: ve.docs.map((d) => ({ id: d.id, ...d.data() })),
+      gutscheine: gu.docs.map((d) => ({ id: d.id, ...d.data() }))
+    });
+    const pruefsumme = await sha256Hex(daten);
+    await setDoc(abRef, {
+      fahrtag: session.fahrtag, standort: session.standort, uid: currentUid, kasse: session.kasse,
+      erstelltAm: serverTimestamp(), daten, pruefsumme, version: 1
+    });
+    protokolliere("tagesabschluss", `Tagesabschluss erstellt (SHA-256 ${pruefsumme.slice(0, 12)}…)`);
+  } catch (err) {
+    console.warn("Tagesabschluss:", err.message); // wird beim nächsten Intervall erneut versucht
+  } finally {
+    tagesabschlussLaeuft = false;
+  }
+}
+
+// ---- Kassenschnitt ----
+kassenschnittBtn.addEventListener("click", async () => {
+  if (tagGesperrt) { showToast("Fahrtag ist abgeschlossen."); return; }
+  if (!confirm("Kassenschnitt jetzt durchführen? Alle bisherigen Buchungen werden festgeschrieben und können nicht mehr storniert werden.")) return;
+  kassenschnittBtn.disabled = true;
+  try {
+    const aktiv = buchungenListe.filter((b) => !b.storniert);
+    const ein = aktiv.filter((b) => b.typ === "einzahlung").reduce((a, b) => a + (b.betrag || 0), 0);
+    const aus = aktiv.filter((b) => b.typ === "auszahlung").reduce((a, b) => a + (b.betrag || 0), 0);
+    const karte = aktiv.filter((b) => b.typ === "kartenzahlung").reduce((a, b) => a + (b.betrag || 0), 0);
+    const soll = kassenbuchAnfangCents + ein - aus;
+    const gez = Object.keys(endbestandCounts).length ? stueckelungSumme(endbestandCounts) : null;
+    const kbSnap = await getDoc(kassenbuchRef);
+    const nr = ((kbSnap.exists() && kbSnap.data().schnittNr) || 0) + 1;
+    const buchungenJson = jsonSicher(buchungenListe.map((b) => ({ id: b.id, typ: b.typ, betrag: b.betrag, grund: b.grund || "", kasse: b.kasse, uid: b.uid || null, storniert: !!b.storniert, zeit: b.zeit })));
+    const pruefsumme = await sha256Hex(buchungenJson + "|" + soll + "|" + kassenbuchAnfangCents);
+    const sRef = await addDoc(collection(db, "kassenschnitte", `${session.fahrtag}_${session.standort}`, "schnitte"), {
+      nr, zeit: serverTimestamp(), uid: currentUid, kasse: session.kasse,
+      anfang: kassenbuchAnfangCents, einzahlungen: ein, auszahlungen: aus, kartenzahlungen: karte,
+      soll, gezaehlt: gez, buchungenAnzahl: buchungenListe.length, buchungen: buchungenJson, pruefsumme
+    });
+    const zeit = (await getDoc(sRef)).data().zeit;
+    await setDoc(kassenbuchRef, { schnittBis: zeit, schnittNr: nr, aktualisiert: serverTimestamp() }, { merge: true });
+    protokolliere("kassenschnitt", `Kassenschnitt Nr. ${nr}: Soll ${euro(soll)}${gez != null ? ", gezählt " + euro(gez) : ""}, ${buchungenListe.length} Buchungen festgeschrieben`);
+    showToast(`Kassenschnitt ${nr} gespeichert.`);
+  } catch (err) {
+    showToast("Fehler beim Kassenschnitt: " + err.message);
+  } finally {
+    kassenschnittBtn.disabled = false;
+  }
+});
+
+// ---- Anfangsbestand aus dem Endbestand des letzten Fahrtags vorbelegen ----
+async function anfangsbestandVorbelegen() {
+  const key = session.fahrtag + "_" + session.standort;
+  if (anfangsVorbelegtFuer === key) return;
+  anfangsVorbelegtFuer = key;
+  try {
+    const snap = await getDocs(query(collection(db, "kassenbuch"), where("fahrtag", "<", session.fahrtag), orderBy("fahrtag", "desc"), limit(20)));
+    const vorher = snap.docs.map((d) => d.data()).find((d) => d.standort === session.standort && d.endbestandGezaehlt != null);
+    if (!vorher) return;
+    await setDoc(kassenbuchRef, {
+      fahrtag: session.fahrtag, standort: session.standort,
+      anfangsbestand: vorher.endbestandGezaehlt,
+      anfangsbestandStueckelung: vorher.endbestandStueckelung || {},
+      anfangsbestandQuelle: vorher.fahrtag,
+      aktualisiert: serverTimestamp()
+    }, { merge: true });
+    protokolliere("anfangsbestand", `Anfangsbestand automatisch aus Endbestand vom ${vorher.fahrtag} übernommen: ${euro(vorher.endbestandGezaehlt)}`);
+  } catch (err) {
+    anfangsVorbelegtFuer = null;
+    console.warn("Vorbelegung Anfangsbestand:", err.message);
+  }
+}
+
+// ===========================================================
+// VOLLBESETZT-ALARM
+// ===========================================================
+const vollOverlay = el("vollOverlay");
+const vollText = el("vollText");
+const vollOk = el("vollOk");
+let vollAktiv = false, alarmAudio = null, audioCtx = null, beepTimer = null, reservePct = null;
+
+function entsperreAudio() {
+  try {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    audioCtx.resume();
+  } catch (e) {}
+  try {
+    if (!alarmAudio) {
+      alarmAudio = new Audio("alarm.mp3");
+      alarmAudio.loop = true;
+      alarmAudio.muted = true;
+      alarmAudio.play().then(() => { alarmAudio.pause(); alarmAudio.currentTime = 0; alarmAudio.muted = false; })
+        .catch(() => { alarmAudio.muted = false; });
+    }
+  } catch (e) {}
+}
+document.addEventListener("pointerdown", entsperreAudio, { once: true });
+
+function fallbackPiepen() {
+  if (beepTimer || !audioCtx) return;
+  const piep = () => {
+    const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+    o.type = "square"; o.frequency.value = 1000;
+    g.gain.value = 0.25;
+    o.connect(g); g.connect(audioCtx.destination);
+    o.start(); o.stop(audioCtx.currentTime + 0.25);
+  };
+  piep();
+  beepTimer = setInterval(piep, 600);
+}
+
+function starteAlarm() {
+  if (alarmAudio) {
+    alarmAudio.loop = true;
+    alarmAudio.currentTime = 0;
+    alarmAudio.play().catch(() => fallbackPiepen());
+    alarmAudio.onerror = fallbackPiepen;
+  } else {
+    fallbackPiepen();
+  }
+  if (navigator.vibrate) navigator.vibrate([500, 200, 500]);
+}
+function stoppeAlarm() {
+  if (alarmAudio) { alarmAudio.pause(); alarmAudio.currentTime = 0; }
+  clearInterval(beepTimer); beepTimer = null;
+  vollOverlay.classList.add("hidden");
+}
+vollOk.addEventListener("click", stoppeAlarm);
+
+async function pruefeVollbesetzt(d) {
+  if (reservePct === null) {
+    reservePct = 0;
+    try {
+      const g = await getDoc(doc(db, "einstellungen", "global"));
+      if (g.exists() && Number.isInteger(g.data().sitzplatzReservePct)) reservePct = g.data().sitzplatzReservePct;
+    } catch (e) {}
+  }
+  const sitz = d.sitzplaetze || 0;
+  const nutzbar = Math.floor(sitz * (100 - reservePct) / 100);
+  const belegt = (d.einzelperson || 0) + (d.familien || 0) + (d.gruppen || 0);
+  const voll = nutzbar > 0 && belegt >= nutzbar;
+  if (voll && !vollAktiv) {
+    vollAktiv = true;
+    vollText.textContent = `Der Zug ist vollbesetzt: ${belegt} von ${nutzbar} verkaufbaren Plätzen belegt (${sitz} Sitzplätze${reservePct ? ", " + reservePct + " % Reserve" : ""}). Bitte keine weiteren Fahrkarten verkaufen.`;
+    vollOverlay.classList.remove("hidden");
+    starteAlarm();
+  } else if (!voll && vollAktiv) {
+    vollAktiv = false;
+    stoppeAlarm();
+  }
+}
+
+// ===========================================================
+// MOBILE: feste Leiste "Zu zahlen" mit Sprung zum Kassenbon
+// ===========================================================
+const mobilePayBar = el("mobilePayBar");
+const mobilePayBetrag = el("mobilePayBetrag");
+function aktualisiereMobilePayBar() {
+  const brutto = saleTotalCents() + gruppenTotalCents() + artikelTotalCents();
+  mobilePayBar.classList.toggle("hidden", !(brutto > 0));
+  mobilePayBetrag.textContent = euro(zuZahlenCents());
+}
+el("mobilePayBtn").addEventListener("click", () => {
+  document.querySelector(".rg-panel").scrollIntoView({ behavior: "smooth", block: "start" });
+});

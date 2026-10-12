@@ -70,11 +70,11 @@
     <div class="field">
       <label>Rolle</label>
       <div class="toggle-group toggle-group-3" id="rolleGroup">
-        <button type="button" class="toggle-btn" data-rolle="kasse">Verkauf</button>
+        <button type="button" class="toggle-btn" data-rolle="kasse">Barverkauf</button>
         <button type="button" class="toggle-btn" data-rolle="beide">Verkauf &amp; Karte</button>
         <button type="button" class="toggle-btn" data-rolle="karte">Kartenzahlgerät</button>
       </div>
-      <p class="rg-hint">„Verkauf" = nur Barzahlung. „Verkauf &amp; Karte" = für alleine Arbeitende, bei jedem Verkauf Bar/Karte wählbar. „Kartenzahlgerät" = eigenes Gerät, erfasst nur Kartenzahlungen.</p>
+      <p class="rg-hint">„Barverkauf" = nur Barzahlung. „Verkauf &amp; Karte" = für alleine Arbeitende, bei jedem Verkauf Bar/Karte wählbar. „Kartenzahlgerät" = eigenes Gerät, erfasst nur Kartenzahlungen.</p>
     </div>
 
     <div class="field" id="fahrtListField">
@@ -235,6 +235,10 @@
         </div>
 
       </div>
+      <div class="mobile-paybar hidden" id="mobilePayBar">
+        <span>Zu zahlen <strong id="mobilePayBetrag">0,00&nbsp;€</strong></span>
+        <button type="button" class="btn btn-brass" id="mobilePayBtn">Zum Kassenbon ↓</button>
+      </div>
     </section>
 
 
@@ -249,7 +253,7 @@
           </div>
 
           <div class="kb-anfangsbestand">
-            <label for="anfangsbestandInput">Anfangsbestand</label>
+            <label for="anfangsbestandInput">Anfangsbestand <span class="opt" id="anfangsbestandQuelle"></span></label>
             <div class="kb-anfangsbestand-row">
               <input type="text" id="anfangsbestandInput" inputmode="decimal" placeholder="0,00">
               <button class="btn btn-ghost btn-small" id="anfangsbestandSpeichern">Speichern</button>
@@ -305,9 +309,10 @@
 
       <div class="panel">
         <div class="panel-head">
-          <h2>Kassenbestand nachher (gezählt)</h2>
+          <h2>Kassenbestand nach Dienstende (gezählt)</h2>
           <span class="panel-sub">Stückelung am Ende des Verkaufstages</span>
         </div>
+        <p class="rg-hint">„Nach Dienstende" = das Bargeld, das nach dem letzten Verkauf tatsächlich in der Kasse liegt (inkl. Wechselgeld). Zähle es nach Scheinen und Münzen durch; die App vergleicht es mit dem Soll-Bestand (Anfangsbestand + Einnahmen − Auszahlungen). Der gespeicherte Betrag wird beim nächsten Fahrtag am selben Standort automatisch als Anfangsbestand vorgeschlagen (änderbar).</p>
         <div class="stueckelungs-grid" id="endbestandStueckelungGrid"></div>
         <div class="kb-summary">
           <div class="kb-summary-row kb-total">
@@ -325,6 +330,29 @@
         </div>
         <button class="btn btn-brass" id="endbestandSpeichern">Gezählten Endbestand speichern</button>
         <p class="rg-hint" id="endbestandHinweis"></p>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <h2>Kassenschnitt</h2>
+          <span class="panel-sub">Zwischenstand festschreiben</span>
+        </div>
+        <p class="rg-hint">Beim Kassenschnitt werden alle bisherigen Buchungen des Tages samt Kassenstand unveränderlich abgespeichert. Buchungen davor können danach nicht mehr storniert werden.</p>
+        <button class="btn btn-brass" id="kassenschnittBtn">Kassenschnitt durchführen</button>
+        <ul class="activity-list" id="kassenschnittListe"></ul>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <h2>Änderungsprotokoll</h2>
+          <span class="panel-sub">fälschungssicher, nicht änderbar oder löschbar</span>
+        </div>
+        <ul class="activity-list" id="logListe"><li class="activity-empty">Noch keine Einträge.</li></ul>
+        <div class="field hidden" id="korrekturBereich">
+          <label>Nachtrag / Korrektur (nur Admin) – ändert keine Originaldaten, wird nur protokolliert</label>
+          <textarea id="korrekturText" rows="2" placeholder="Was wurde warum nachträglich festgestellt/geändert?"></textarea>
+          <button class="btn btn-ghost" id="korrekturSpeichern">Nachtrag protokollieren</button>
+        </div>
       </div>
     </section>
 
@@ -412,6 +440,7 @@
 
       <div class="panel">
         <div class="panel-head"><h2>Vergleich mit der Kassenapp</h2></div>
+        <p class="rg-hint">Hier wird geprüft, ob die Zahlen auf dem Papier-Verkaufsnachweis stimmen: Oben steht das Bargeld, das sich aus den Fahrkartennummern (Verkauf laut Nummern − Karte − Gutscheine) ergibt. Darunter steht, was in der App tatsächlich bar verbucht wurde. Die Differenz sollte 0 sein; ein Minus bedeutet, dass Geld fehlt.</p>
         <div class="bericht-vergleich">
           <div class="kb-summary-row">
             <span>Bar verkauft laut Kassenapp (alle Kassen)</span>
@@ -537,6 +566,17 @@
     <div class="dialog-actions">
       <button id="kapazitaetAbbrechen" class="btn btn-ghost">Abbrechen</button>
       <button id="kapazitaetTrotzdem" class="btn btn-danger">Trotzdem verkaufen</button>
+    </div>
+  </div>
+</div>
+
+<!-- Alarm: Zug vollbesetzt -->
+<div id="vollOverlay" class="dialog-overlay hidden">
+  <div class="dialog-card">
+    <p class="dialog-warn-title">🚨 Vollbesetzt</p>
+    <p id="vollText"></p>
+    <div class="dialog-actions">
+      <button id="vollOk" class="btn btn-danger">OK</button>
     </div>
   </div>
 </div>
