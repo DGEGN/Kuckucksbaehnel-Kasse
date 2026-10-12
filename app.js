@@ -19,18 +19,20 @@ import {
 // Firebase-Konsole -> Projekteinstellungen -> "Meine Apps" -> Web-App
 // ---------------------------------------------------------
 const firebaseConfig = {
-  apiKey: "DEIN_API_KEY",
-  authDomain: "DEIN_PROJEKT.firebaseapp.com",
-  projectId: "DEIN_PROJEKT",
-  storageBucket: "DEIN_PROJEKT.appspot.com",
-  messagingSenderId: "DEINE_SENDER_ID",
-  appId: "DEINE_APP_ID"
+  apiKey: "AIzaSyCpfHTMh8zx2hmcxjF-ayIjW0lFtJcBtSM",
+  authDomain: "kuckuck-fahrkarten.firebaseapp.com",
+  databaseURL: "https://kuckuck-fahrkarten-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId: "kuckuck-fahrkarten",
+  storageBucket: "kuckuck-fahrkarten.firebasestorage.app",
+  messagingSenderId: "732559401683",
+  appId: "1:732559401683:web:dbfb8ef56c85c73de46a26"
 };
 
 // TODO: Web-App-URL des Google Apps Script (endet auf "/exec"), siehe
 // google-apps-script.gs für Code + Einrichtung. Leer lassen/Platzhalter
 // stehen lassen, um die Google-Sheets-Übertragung vorerst zu deaktivieren.
-const GOOGLE_SHEETS_WEBHOOK_URL = "DEINE_APPS_SCRIPT_WEB_APP_URL";
+const GOOGLE_SHEETS_WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbxCcl_HOSmDsKFRPWv6T2H2KNoYQ3N0z8EE2hI58OzYCb5ipMTTXWgxGil8RyazrWCZ/exec";
+
 
 const firebaseApp = initializeApp(firebaseConfig);
 const db = getFirestore(firebaseApp);
