@@ -55,7 +55,10 @@ function euroZahl(cents) {
 // Tabellenblatt je Fahrtag ("Verkaufsnachweis für Fahrkarten")
 // ============================================================
 function schreibeFahrtagBlatt(ss, data) {
-  var name = data.fahrtag;
+  // Ein eigenes Tabellenblatt je Fahrtag UND Standort (z. B. "2026-09-01 Neustadt"),
+  // da jeder Standort ein eigenes Kassenbuch/Ticketbestand/Bericht führt.
+  var standortName = data.standort ? (data.standort.charAt(0).toUpperCase() + data.standort.slice(1)) : '';
+  var name = data.fahrtag + (standortName ? (' ' + standortName) : '');
   var sheet = ss.getSheetByName(name);
   if (sheet) {
     sheet.clear();
@@ -66,10 +69,12 @@ function schreibeFahrtagBlatt(ss, data) {
   sheet.getRange(1, 1).setValue('Verkaufsnachweis für Fahrkarten').setFontWeight('bold').setFontSize(14);
   sheet.getRange(2, 1).setValue('Fahrtag');
   sheet.getRange(2, 2).setValue(data.fahrtag);
-  sheet.getRange(2, 4).setValue('Zuletzt gesendet von');
-  sheet.getRange(2, 5).setValue(data.kasse || '');
+  sheet.getRange(2, 3).setValue('Standort');
+  sheet.getRange(2, 4).setValue(standortName);
+  sheet.getRange(3, 3).setValue('Zuletzt gesendet von');
+  sheet.getRange(3, 4).setValue(data.kasse || '');
 
-  var headerRow = 4;
+  var headerRow = 5;
   sheet.getRange(headerRow, 1, 1, 6)
     .setValues([['Ticketart', 'Anfangsbestand', 'Endstand', 'Verkauft', 'Preis', 'Umsatz']])
     .setFontWeight('bold');
@@ -89,7 +94,7 @@ function schreibeFahrtagBlatt(ss, data) {
   });
 
   var r = startRow + zeilen.length;
-  sheet.getRange(r, 1).setValue('Gruppen in Neustadt');
+  sheet.getRange(r, 1).setValue('Gruppen in ' + (standortName || 'Neustadt'));
   sheet.getRange(r, 6).setValue(euroZahl(data.gruppenEinnahme));
   r++;
 
@@ -128,7 +133,8 @@ function schreibeJahresuebersicht(ss, data) {
   var jahr = String(data.fahrtag).split('-')[0];
   var name = 'Jahresübersicht ' + jahr;
   var sheet = ss.getSheetByName(name);
-  var kopf = ['Fahrtag', 'Gesamteinnahme', 'Kartenzahlung', 'Gutscheine gesamt', 'Bargeldeinnahmen (erwartet)', 'Verkauft laut Kassenapp', 'Differenz', 'Zuletzt gesendet von', 'Bemerkung'];
+  var standortName = data.standort ? (data.standort.charAt(0).toUpperCase() + data.standort.slice(1)) : '';
+  var kopf = ['Fahrtag', 'Standort', 'Gesamteinnahme', 'Kartenzahlung', 'Gutscheine gesamt', 'Bargeldeinnahmen (erwartet)', 'Verkauft laut Kassenapp', 'Differenz', 'Zuletzt gesendet von', 'Bemerkung'];
 
   if (!sheet) {
     sheet = ss.insertSheet(name);
@@ -141,6 +147,7 @@ function schreibeJahresuebersicht(ss, data) {
 
   var werte = [
     data.fahrtag,
+    standortName,
     euroZahl(data.gesamteinnahme),
     euroZahl(data.kartenzahlung),
     euroZahl(gutscheineGesamt),
@@ -151,17 +158,18 @@ function schreibeJahresuebersicht(ss, data) {
     data.bemerkung || ''
   ];
 
+  // Upsert-Schlüssel ist Fahrtag + Standort (je Standort eine eigene Zeile pro Tag)
   var lastRow = sheet.getLastRow();
   var zielZeile = -1;
   if (lastRow >= 2) {
-    var spalteA = sheet.getRange(2, 1, lastRow - 1, 1).getValues();
-    for (var i = 0; i < spalteA.length; i++) {
-      if (String(spalteA[i][0]) === String(data.fahrtag)) { zielZeile = i + 2; break; }
+    var spalten = sheet.getRange(2, 1, lastRow - 1, 2).getValues();
+    for (var i = 0; i < spalten.length; i++) {
+      if (String(spalten[i][0]) === String(data.fahrtag) && String(spalten[i][1]) === standortName) { zielZeile = i + 2; break; }
     }
   }
   if (zielZeile === -1) zielZeile = lastRow + 1;
 
   sheet.getRange(zielZeile, 1, 1, werte.length).setValues([werte]);
-  sheet.getRange(2, 2, Math.max(sheet.getLastRow() - 1, 1), 6).setNumberFormat('#,##0.00 "€"');
+  sheet.getRange(2, 3, Math.max(sheet.getLastRow() - 1, 1), 6).setNumberFormat('#,##0.00 "€"');
   sheet.autoResizeColumns(1, kopf.length);
 }

@@ -2184,3 +2184,21 @@ function renderResPanel() {
     });
   });
 }
+
+
+// Diagnose: Tippen auf die Platzanzeige zeigt die Rohdaten (zum Vergleich mit der Fahrgastzählapp)
+platzBar.addEventListener("click", () => {
+  const b = fahrtDaten ? berechneFrei(fahrtDaten) : null;
+  const txt = JSON.stringify({
+    fahrt: fahrtDaten ? { sitzplaetze: fahrtDaten.sitzplaetze, einzelperson: fahrtDaten.einzelperson, familien: fahrtDaten.familien, gruppen: fahrtDaten.gruppen, erwachsene: fahrtDaten.erwachsene, kinder: fahrtDaten.kinder, wagen: fahrtDaten.wagen } : null,
+    sitzplatzReservePct: reservePct, neustadtReserveFuerLambrecht: neustadtReserve, lambrechtGezaehlt,
+    reserviert: reserviertSumme(), standort: session.standort, berechnet: b
+  }, null, 1);
+  let pre = document.getElementById("platzDiag");
+  if (pre) { pre.remove(); return; }
+  pre = document.createElement("pre");
+  pre.id = "platzDiag";
+  pre.style.cssText = "white-space:pre-wrap;font-size:.75rem;background:#f4f4f4;padding:8px;border-radius:8px;margin:0 0 12px;user-select:all";
+  pre.textContent = txt;
+  platzBar.after(pre);
+});
