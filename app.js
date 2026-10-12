@@ -19,21 +19,18 @@ import {
 // Firebase-Konsole -> Projekteinstellungen -> "Meine Apps" -> Web-App
 // ---------------------------------------------------------
 const firebaseConfig = {
-const firebaseConfig = {
-  apiKey: "AIzaSyCpfHTMh8zx2hmcxjF-ayIjW0lFtJcBtSM",
-  authDomain: "kuckuck-fahrkarten.firebaseapp.com",
-  databaseURL: "https://kuckuck-fahrkarten-default-rtdb.europe-west1.firebasedatabase.app",
-  projectId: "kuckuck-fahrkarten",
-  storageBucket: "kuckuck-fahrkarten.firebasestorage.app",
-  messagingSenderId: "732559401683",
-  appId: "1:732559401683:web:dbfb8ef56c85c73de46a26"
+  apiKey: "DEIN_API_KEY",
+  authDomain: "DEIN_PROJEKT.firebaseapp.com",
+  projectId: "DEIN_PROJEKT",
+  storageBucket: "DEIN_PROJEKT.appspot.com",
+  messagingSenderId: "DEINE_SENDER_ID",
+  appId: "DEINE_APP_ID"
 };
 
 // TODO: Web-App-URL des Google Apps Script (endet auf "/exec"), siehe
 // google-apps-script.gs für Code + Einrichtung. Leer lassen/Platzhalter
 // stehen lassen, um die Google-Sheets-Übertragung vorerst zu deaktivieren.
-const GOOGLE_SHEETS_WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbxCcl_HOSmDsKFRPWv6T2H2KNoYQ3N0z8EE2hI58OzYCb5ipMTTXWgxGil8RyazrWCZ/exec";
-
+const GOOGLE_SHEETS_WEBHOOK_URL = "DEINE_APPS_SCRIPT_WEB_APP_URL";
 
 const firebaseApp = initializeApp(firebaseConfig);
 const db = getFirestore(firebaseApp);
@@ -1153,30 +1150,39 @@ rgVerbuchen.addEventListener("click", async () => {
 
     const ereignisIds = [];
     let reservierungDetails = null;
+    let fahrtGezaehlt = false;
     if (fahrtSnap && fahrtSnap.exists()) {
-      const updates = {};
-      Object.entries(kategorieSummen).forEach(([kat, anz]) => { updates[kat] = increment(anz); });
-      await updateDoc(fahrtRef, updates);
-      for (const [kat, anz] of Object.entries(kategorieSummen)) {
-        const ref = await addDoc(collection(fahrtRef, "ereignisse"), {
-          kategorie: kat, anzahl: anz, kasse: session.kasse, zeit: serverTimestamp(),
-          standort: session.standort,
-          ...(kat === "gruppen" && gewRes ? {
-            gruppenName: gewRes.name,
-            erwachsene: (gruppenPosten.find((g) => g.key === "ge") || {}).anzahl || 0,
-            kinder: (gruppenPosten.find((g) => g.key === "gk") || {}).anzahl || 0,
-            hinweis: "Reservierung: " + gewRes.name
-          } : {})
-        });
-        ereignisIds.push(ref.id);
+      let zaehlFehler = null;
+      try {
+        const updates = {};
+        Object.entries(kategorieSummen).forEach(([kat, anz]) => { updates[kat] = increment(anz); });
+        await updateDoc(fahrtRef, updates);
+        fahrtGezaehlt = true; // ab hier ist gezählt – Storno muss das wieder abziehen
+        for (const [kat, anz] of Object.entries(kategorieSummen)) {
+          const ref = await addDoc(collection(fahrtRef, "ereignisse"), {
+            kategorie: kat, anzahl: anz, kasse: session.kasse, zeit: serverTimestamp(),
+            standort: session.standort,
+            ...(kat === "gruppen" && gewRes ? {
+              gruppenName: gewRes.name,
+              erwachsene: (gruppenPosten.find((g) => g.key === "ge") || {}).anzahl || 0,
+              kinder: (gruppenPosten.find((g) => g.key === "gk") || {}).anzahl || 0,
+              hinweis: "Reservierung: " + gewRes.name
+            } : {})
+          });
+          ereignisIds.push(ref.id);
+        }
+        // Gewählte Gruppenreservierung als "angekommen" abhaken (= Reservierung löschen)
+        if (gewRes && (kategorieSummen.gruppen || 0) > 0) {
+          await deleteDoc(doc(fahrtRef, "reservierungen", gewRes.id));
+          reservierungDetails = { name: gewRes.name, daten: gewRes.daten };
+        }
+      } catch (e) {
+        zaehlFehler = e;
+        console.error("Fahrgastzählung:", e);
       }
-      // Gewählte Gruppenreservierung: als "angekommen" abhaken (= Reservierung löschen);
-      // die tatsächliche Personenzahl wurde oben als normale Gruppen-Zählung gebucht.
-      if (gewRes && (kategorieSummen.gruppen || 0) > 0) {
-        await deleteDoc(doc(fahrtRef, "reservierungen", gewRes.id));
-        reservierungDetails = { name: gewRes.name, daten: gewRes.daten };
-      }
-      rgVerbuchenHint.textContent = hint + " Fahrgäste wurden automatisch gezählt.";
+      rgVerbuchenHint.textContent = zaehlFehler
+        ? hint + " ACHTUNG: Fahrgastzählung/Reservierung nicht vollständig (" + zaehlFehler.message + ") – bitte in der Fahrgastzählapp prüfen."
+        : hint + " Fahrgäste wurden automatisch gezählt.";
     } else {
       rgVerbuchenHint.textContent = hint + " Achtung: Für diesen Fahrtag läuft noch keine Zählung in der Fahrgastzählapp – Fahrgastzahlen wurden nicht aktualisiert.";
     }
@@ -1184,7 +1190,7 @@ rgVerbuchen.addEventListener("click", async () => {
     // Alles, was ein späteres "Stornieren" braucht, um Verkauf, Gutscheine
     // und Fahrgastzählung sauber wieder rückgängig zu machen.
     const verkaufDetails = {
-      fahrtId: (fahrtSnap && fahrtSnap.exists()) ? session.fahrtId : null,
+      fahrtId: (fahrtSnap && fahrtSnap.exists() && fahrtGezaehlt) ? session.fahrtId : null,
       posten: posten.map((p) => ({ ticket: p.key, label: p.label, anzahl: p.anzahl, einzelpreis: preise[p.key] || 0 }))
         .concat(gruppenPosten.map((g) => ({ ticket: g.key, label: g.label, anzahl: g.anzahl, einzelpreis: g.einzelpreis })))
         .concat(artikelPosten.map((a) => ({ ticket: a.key, label: a.label, anzahl: a.anzahl, einzelpreis: a.einzelpreis }))),
