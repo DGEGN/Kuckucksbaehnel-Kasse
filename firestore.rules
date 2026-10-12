@@ -110,11 +110,12 @@ service cloud.firestore {
       allow read: if request.auth != null;
 
       allow create: if istAdmin()
-        && request.resource.data.keys().hasAll(['name', 'sitzplaetze', 'bild'])
+        && request.resource.data.keys().hasAll(['name', 'sitzplaetze', 'bild', 'pufferAnwenden'])
         && request.resource.data.name is string
         && request.resource.data.name.size() > 0
         && request.resource.data.sitzplaetze is int
-        && request.resource.data.sitzplaetze > 0;
+        && request.resource.data.sitzplaetze > 0
+        && request.resource.data.pufferAnwenden is bool;
 
       allow update: if istAdmin();
       allow delete: if istAdmin();
@@ -135,7 +136,9 @@ service cloud.firestore {
           (einstellungId == 'global'
             && request.resource.data.sitzplatzReservePct is int
             && request.resource.data.sitzplatzReservePct >= 0
-            && request.resource.data.sitzplatzReservePct <= 99)
+            && request.resource.data.sitzplatzReservePct <= 99
+            && request.resource.data.neustadtReserveFuerLambrecht is int
+            && request.resource.data.neustadtReserveFuerLambrecht >= 0)
           || einstellungId != 'global'
         );
 
@@ -199,7 +202,14 @@ service cloud.firestore {
 
         // Bestätigen/Entfernen läuft über Löschen (+ ggf. separate Zählung)
         allow delete: if istBearbeiter() && !istFahrtArchiviert(fahrtId);
-        allow update: if false;
+        // Bearbeiten (Name / abweichende Personenzahl / Aufteilung)
+        allow update: if istBearbeiter()
+          && !istFahrtArchiviert(fahrtId)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'anzahl', 'erwachsene', 'kinder'])
+          && request.resource.data.name is string
+          && request.resource.data.name.size() > 0
+          && request.resource.data.anzahl is int
+          && request.resource.data.anzahl > 0;
       }
     }
 
