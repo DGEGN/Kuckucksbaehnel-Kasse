@@ -1857,8 +1857,8 @@ function starteSicherheitsFunktionen() {
 }
 
 function stoppeSicherheitsFunktionen() {
-  [unsubLog, unsubSchnitte, unsubRes].forEach((u) => u && u());
-  unsubLog = unsubSchnitte = unsubRes = null;
+  [unsubLog, unsubSchnitte, unsubRes, unsubEreig].forEach((u) => u && u());
+  unsubLog = unsubSchnitte = unsubRes = unsubEreig = null; lambrechtGezaehlt = 0;
   reservierungen = []; gewaehlteRes = null; fahrtDaten = null;
   clearInterval(nachtTimer); nachtTimer = null;
   tagGesperrt = false;
@@ -2042,22 +2042,47 @@ function stoppeAlarm() {
 }
 vollOk.addEventListener("click", stoppeAlarm);
 
-async function pruefeVollbesetzt(d) {
-  if (reservePct === null) {
-    reservePct = 0;
-    try {
-      const g = await getDoc(doc(db, "einstellungen", "global"));
-      if (g.exists() && Number.isInteger(g.data().sitzplatzReservePct)) reservePct = g.data().sitzplatzReservePct;
-    } catch (e) {}
-  }
+let neustadtReserve = 0, lambrechtGezaehlt = 0;
+
+async function ladeEinstellungen() {
+  if (reservePct !== null) return;
+  reservePct = 0;
+  try {
+    const g = await getDoc(doc(db, "einstellungen", "global"));
+    if (g.exists()) {
+      if (Number.isInteger(g.data().sitzplatzReservePct)) reservePct = g.data().sitzplatzReservePct;
+      if (Number.isInteger(g.data().neustadtReserveFuerLambrecht)) neustadtReserve = g.data().neustadtReserveFuerLambrecht;
+    }
+  } catch (e) {}
+}
+
+// Freie Plätze wie in der Fahrgastzählapp: Puffer-Prozent gilt nur für Wagen mit
+// pufferAnwenden; in Neustadt bleiben zusätzlich die für Lambrecht freigehaltenen
+// Plätze abgezogen (soweit Lambrecht sie noch nicht selbst belegt hat).
+function berechneFrei(d) {
   const sitz = d.sitzplaetze || 0;
+  const wagen = Array.isArray(d.wagen) ? d.wagen.filter((w) => w && typeof w === "object" && Number.isFinite(w.sitzplaetze)) : [];
+  let angeboten;
+  if (wagen.length) {
+    angeboten = wagen.reduce((sum, w) => sum + (w.pufferAnwenden ? Math.floor(w.sitzplaetze * (100 - reservePct) / 100) : w.sitzplaetze), 0);
+  } else {
+    angeboten = Math.floor(sitz * (100 - (reservePct || 0)) / 100);
+  }
+  const belegt = (d.einzelperson || 0) + (d.familien || 0) + (d.gruppen || 0);
+  const res = reserviertSumme();
+  const fuerLambrecht = session.standort === "neustadt" ? Math.max(0, neustadtReserve - lambrechtGezaehlt) : 0;
+  const frei = angeboten - belegt - res - fuerLambrecht;
+  return { sitz, angeboten, belegt, res, fuerLambrecht, frei };
+}
+
+async function pruefeVollbesetzt(d) {
+  await ladeEinstellungen();
   renderPlatzBar();
-  const nutzbar = Math.floor(sitz * (100 - reservePct) / 100);
-  const belegt = (d.einzelperson || 0) + (d.familien || 0) + (d.gruppen || 0) + reserviertSumme();
-  const voll = nutzbar > 0 && belegt >= nutzbar;
+  const b = berechneFrei(d);
+  const voll = b.angeboten > 0 && b.frei <= 0;
   if (voll && !vollAktiv) {
     vollAktiv = true;
-    vollText.textContent = `Der Zug ist vollbesetzt: ${belegt} von ${nutzbar} verkaufbaren Plätzen belegt (${sitz} Sitzplätze${reservePct ? ", " + reservePct + " % Reserve" : ""}). Bitte keine weiteren Fahrkarten verkaufen.`;
+    vollText.textContent = `Der Zug ist vollbesetzt: ${b.belegt + b.res} von ${b.angeboten - b.fuerLambrecht} verkaufbaren Plätzen belegt${b.res ? " (davon " + b.res + " reserviert)" : ""}. Bitte keine weiteren Fahrkarten verkaufen.`;
     vollOverlay.classList.remove("hidden");
     starteAlarm();
   } else if (!voll && vollAktiv) {
@@ -2087,7 +2112,7 @@ el("mobilePayBtn").addEventListener("click", () => {
 const platzBar = el("platzBar");
 const resPanel = el("resPanel");
 const resListe = el("resListe");
-let fahrtDaten = null, reservierungen = [], unsubRes = null, gewaehlteRes = null;
+let fahrtDaten = null, reservierungen = [], unsubRes = null, unsubEreig = null, gewaehlteRes = null;
 
 function reserviertSumme() {
   return reservierungen.reduce((s, r) => s + (r.anzahl || 0), 0);
@@ -2095,21 +2120,26 @@ function reserviertSumme() {
 
 function renderPlatzBar() {
   if (!fahrtDaten || !fahrtDaten.sitzplaetze) { platzBar.classList.add("hidden"); return; }
-  const sitz = fahrtDaten.sitzplaetze;
-  const nutzbar = Math.floor(sitz * (100 - (reservePct || 0)) / 100);
-  const belegt = (fahrtDaten.einzelperson || 0) + (fahrtDaten.familien || 0) + (fahrtDaten.gruppen || 0);
-  const res = reserviertSumme();
-  const frei = nutzbar - belegt - res;
+  const b = berechneFrei(fahrtDaten);
+  const frei = b.frei;
   platzBar.classList.remove("hidden");
   platzBar.classList.toggle("platz-voll", frei <= 0);
-  platzBar.classList.toggle("platz-knapp", frei > 0 && frei <= nutzbar * 0.1);
+  platzBar.classList.toggle("platz-knapp", frei > 0 && frei <= b.angeboten * 0.1);
   platzBar.innerHTML = `<span class="platz-frei">${frei > 0 ? frei : 0}</span>
     <span class="platz-text">${frei > 0 ? "Plätze frei" : "Vollbesetzt – nur noch Stehplätze"}
-    <small>von ${nutzbar} · ${belegt} gezählt${res ? " · " + res + " reserviert" : ""}</small></span>`;
+    <small>${b.angeboten} angeboten (${b.sitz} Sitzplätze) · ${b.belegt} gezählt${b.res ? " · " + b.res + " reserviert" : ""}${b.fuerLambrecht ? " · " + b.fuerLambrecht + " für Lambrecht frei gehalten" : ""}</small></span>`;
 }
 
 function subscribeReservierungen() {
   if (!fahrtRef) { resPanel.classList.add("hidden"); return; }
+  unsubEreig = onSnapshot(collection(fahrtRef, "ereignisse"), (snap) => {
+    lambrechtGezaehlt = snap.docs.reduce((sum, d) => {
+      const x = d.data();
+      return sum + (x.standort === "lambrecht" ? (x.anzahl || 0) : 0);
+    }, 0);
+    renderPlatzBar();
+    if (fahrtDaten) pruefeVollbesetzt(fahrtDaten);
+  }, () => {});
   unsubRes = onSnapshot(collection(fahrtRef, "reservierungen"), (snap) => {
     reservierungen = snap.docs.map((d) => {
       const x = d.data();
