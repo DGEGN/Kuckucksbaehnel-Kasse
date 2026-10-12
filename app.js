@@ -969,6 +969,7 @@ rgSchnellwahl.addEventListener("click", (e) => {
   updateRgDisplay();
 });
 rgReset.addEventListener("click", () => {
+  gewaehlteRes = null; renderResPanel();
   saleQty = {}; gruppenQty = { ge: 0, gk: 0 }; gruppenPreis = { ge: 0, gk: 0 };
   artikelQty = { auf: 0 };
   gutscheinQty = { familie: 0, einzelperson: 0 }; rgGegebenCents = 0;
@@ -1043,6 +1044,9 @@ async function stornoBuchung(buchung, btnEl) {
           await updateDoc(fRef, updates);
           for (const id of details.ereignisIds || []) {
             await deleteDoc(doc(fRef, "ereignisse", id)).catch(() => {});
+          }
+          if (details.reservierung && details.reservierung.daten) {
+            await addDoc(collection(fRef, "reservierungen"), details.reservierung.daten); // Gruppe wieder als "angemeldet"
           }
         } catch (fahrtErr) {
           showToast("Buchung storniert, aber Fahrgastzahlen konnten nicht angepasst werden: " + fahrtErr.message);
@@ -1145,13 +1149,29 @@ rgVerbuchen.addEventListener("click", async () => {
     }
 
     const ereignisIds = [];
+    let reservierungDetails = null;
     if (fahrtSnap && fahrtSnap.exists()) {
       const updates = {};
       Object.entries(kategorieSummen).forEach(([kat, anz]) => { updates[kat] = increment(anz); });
       await updateDoc(fahrtRef, updates);
       for (const [kat, anz] of Object.entries(kategorieSummen)) {
-        const ref = await addDoc(collection(fahrtRef, "ereignisse"), { kategorie: kat, anzahl: anz, kasse: session.kasse, zeit: serverTimestamp() });
+        const ref = await addDoc(collection(fahrtRef, "ereignisse"), {
+          kategorie: kat, anzahl: anz, kasse: session.kasse, zeit: serverTimestamp(),
+          standort: session.standort,
+          ...(kat === "gruppen" && gewaehlteRes ? {
+            gruppenName: gewaehlteRes.name,
+            erwachsene: (gruppenPosten.find((g) => g.key === "ge") || {}).anzahl || 0,
+            kinder: (gruppenPosten.find((g) => g.key === "gk") || {}).anzahl || 0,
+            hinweis: "Reservierung: " + gewaehlteRes.name
+          } : {})
+        });
         ereignisIds.push(ref.id);
+      }
+      // Gewählte Gruppenreservierung: als "angekommen" abhaken (= Reservierung löschen);
+      // die tatsächliche Personenzahl wurde oben als normale Gruppen-Zählung gebucht.
+      if (gewaehlteRes && (kategorieSummen.gruppen || 0) > 0) {
+        await deleteDoc(doc(fahrtRef, "reservierungen", gewaehlteRes.id));
+        reservierungDetails = { name: gewaehlteRes.name, daten: gewaehlteRes.daten };
       }
       rgVerbuchenHint.textContent = hint + " Fahrgäste wurden automatisch gezählt.";
     } else {
@@ -1170,10 +1190,12 @@ rgVerbuchen.addEventListener("click", async () => {
       gutscheinEintragIds,
       kategorieSummen,
       ereignisIds,
+      reservierung: reservierungDetails,
       artikelBar: istBar ? Math.min(artikelTotalCents(), zuZahlen) : 0
     };
     await bucheKassenbuch(istBar ? "einzahlung" : "kartenzahlung", zuZahlen, grund, verkaufDetails);
 
+    gewaehlteRes = null; renderResPanel();
     saleQty = {}; gruppenQty = { ge: 0, gk: 0 }; gruppenPreis = { ge: 0, gk: 0 };
     artikelQty = { auf: 0 };
     gutscheinQty = { familie: 0, einzelperson: 0 }; rgGegebenCents = 0;
@@ -1201,7 +1223,9 @@ function subscribeFahrt() {
   }
   unsubFahrt = onSnapshot(fahrtRef, (snap) => {
     setConnStatus(snap.metadata.fromCache ? "offline" : "online");
+    fahrtDaten = snap.exists() ? snap.data() : null;
     if (snap.exists()) pruefeVollbesetzt(snap.data());
+    renderPlatzBar();
   }, (err) => {
     setConnStatus("offline");
   });
@@ -1827,13 +1851,15 @@ function starteSicherheitsFunktionen() {
     }).join("");
   }, () => {});
 
+  subscribeReservierungen();
   pruefeTagesende();
   nachtTimer = setInterval(pruefeTagesende, 30000);
 }
 
 function stoppeSicherheitsFunktionen() {
-  [unsubLog, unsubSchnitte].forEach((u) => u && u());
-  unsubLog = unsubSchnitte = null;
+  [unsubLog, unsubSchnitte, unsubRes].forEach((u) => u && u());
+  unsubLog = unsubSchnitte = unsubRes = null;
+  reservierungen = []; gewaehlteRes = null; fahrtDaten = null;
   clearInterval(nachtTimer); nachtTimer = null;
   tagGesperrt = false;
   document.body.classList.remove("tag-gesperrt");
@@ -2025,8 +2051,9 @@ async function pruefeVollbesetzt(d) {
     } catch (e) {}
   }
   const sitz = d.sitzplaetze || 0;
+  renderPlatzBar();
   const nutzbar = Math.floor(sitz * (100 - reservePct) / 100);
-  const belegt = (d.einzelperson || 0) + (d.familien || 0) + (d.gruppen || 0);
+  const belegt = (d.einzelperson || 0) + (d.familien || 0) + (d.gruppen || 0) + reserviertSumme();
   const voll = nutzbar > 0 && belegt >= nutzbar;
   if (voll && !vollAktiv) {
     vollAktiv = true;
@@ -2052,3 +2079,78 @@ function aktualisiereMobilePayBar() {
 el("mobilePayBtn").addEventListener("click", () => {
   document.querySelector(".rg-panel").scrollIntoView({ behavior: "smooth", block: "start" });
 });
+
+
+// ===========================================================
+// FREIE PLÄTZE + ANGEMELDETE GRUPPEN (aus der Fahrgastzählapp)
+// ===========================================================
+const platzBar = el("platzBar");
+const resPanel = el("resPanel");
+const resListe = el("resListe");
+let fahrtDaten = null, reservierungen = [], unsubRes = null, gewaehlteRes = null;
+
+function reserviertSumme() {
+  return reservierungen.reduce((s, r) => s + (r.anzahl || 0), 0);
+}
+
+function renderPlatzBar() {
+  if (!fahrtDaten || !fahrtDaten.sitzplaetze) { platzBar.classList.add("hidden"); return; }
+  const sitz = fahrtDaten.sitzplaetze;
+  const nutzbar = Math.floor(sitz * (100 - (reservePct || 0)) / 100);
+  const belegt = (fahrtDaten.einzelperson || 0) + (fahrtDaten.familien || 0) + (fahrtDaten.gruppen || 0);
+  const res = reserviertSumme();
+  const frei = nutzbar - belegt - res;
+  platzBar.classList.remove("hidden");
+  platzBar.classList.toggle("platz-voll", frei <= 0);
+  platzBar.classList.toggle("platz-knapp", frei > 0 && frei <= nutzbar * 0.1);
+  platzBar.innerHTML = `<span class="platz-frei">${frei > 0 ? frei : 0}</span>
+    <span class="platz-text">${frei > 0 ? "Plätze frei" : "Vollbesetzt – nur noch Stehplätze"}
+    <small>von ${nutzbar} · ${belegt} gezählt${res ? " · " + res + " reserviert" : ""}</small></span>`;
+}
+
+function subscribeReservierungen() {
+  if (!fahrtRef) { resPanel.classList.add("hidden"); return; }
+  unsubRes = onSnapshot(collection(fahrtRef, "reservierungen"), (snap) => {
+    reservierungen = snap.docs.map((d) => {
+      const x = d.data();
+      return { id: d.id, name: x.name || "Gruppe", anzahl: x.anzahl || 0,
+        erwachsene: Number.isInteger(x.erwachsene) ? x.erwachsene : null,
+        kinder: Number.isInteger(x.kinder) ? x.kinder : null, daten: x };
+    });
+    if (gewaehlteRes && !reservierungen.some((r) => r.id === gewaehlteRes.id)) gewaehlteRes = null;
+    renderResPanel();
+    renderPlatzBar();
+    if (fahrtDaten) pruefeVollbesetzt(fahrtDaten);
+  }, () => {});
+}
+
+function renderResPanel() {
+  resPanel.classList.toggle("hidden", !fahrtRef || (!reservierungen.length && !gewaehlteRes));
+  resListe.innerHTML = reservierungen.map((r) => {
+    const aufteilung = (r.erwachsene != null || r.kinder != null) ? ` (${r.erwachsene || 0} Erw. / ${r.kinder || 0} Kinder)` : "";
+    const gew = gewaehlteRes && gewaehlteRes.id === r.id;
+    return `<li class="sale-row res-row${gew ? " res-gewaehlt" : ""}">
+      <div><span class="sale-name">${escapeHtml(r.name)}</span>
+      <span class="sale-price">angemeldet: ${r.anzahl} Personen${aufteilung}</span></div>
+      <button type="button" class="btn ${gew ? "btn-ghost" : "btn-brass"} btn-small" data-res="${r.id}">${gew ? "Abwählen" : "Auswählen"}</button>
+    </li>`;
+  }).join("") + (gewaehlteRes ? `<li class="rg-hint">Tatsächliche Anzahl unten bei „Gruppe Erwachsene“ / „Gruppe Kind“ anpassen und den Einzelpreis eintragen. Beim Abschluss wird die Gruppe in der Fahrgastzählapp als angekommen abgehakt und mit der tatsächlichen Zahl gezählt.</li>` : "");
+  resListe.querySelectorAll("button[data-res]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const r = reservierungen.find((x) => x.id === btn.dataset.res);
+      if (!r) return;
+      if (gewaehlteRes && gewaehlteRes.id === r.id) {
+        gewaehlteRes = null;
+        gruppenQty = { ge: 0, gk: 0 };
+      } else {
+        gewaehlteRes = r;
+        const kinder = r.kinder != null ? r.kinder : 0;
+        const erw = r.erwachsene != null ? r.erwachsene : Math.max(0, r.anzahl - kinder);
+        gruppenQty = { ge: erw, gk: kinder };
+      }
+      renderResPanel();
+      renderSaleList();
+      updateRgDisplay();
+    });
+  });
+}

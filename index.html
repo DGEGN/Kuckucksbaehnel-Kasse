@@ -154,11 +154,17 @@
       <div class="rg-grid">
 
         <div class="panel">
+          <div class="platz-bar hidden" id="platzBar"></div>
           <div class="panel-head"><h2>Tickets auswählen</h2></div>
           <ul class="sale-list" id="saleList"><!-- per JS befüllt --></ul>
           <div class="sale-total-row">
             <span>Ticketsumme</span>
             <span id="saleTotal" class="kb-mono">0,00&nbsp;€</span>
+          </div>
+
+          <div id="resPanel" class="hidden">
+            <div class="gutschein-head">Angemeldete Gruppen <span class="opt">(aus der Fahrgastzählapp)</span></div>
+            <ul class="sale-list" id="resListe"></ul>
           </div>
 
           <div class="gutschein-head">Gruppenfahrkarten <span class="opt">(kein fortlaufender Ticketbestand, freier Einzelpreis)</span></div>

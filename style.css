@@ -644,3 +644,12 @@ textarea { width: 100%; box-sizing: border-box; font: inherit; padding: 8px; mar
 .gesperrt-banner { background: #fde7e5; color: #7a1410; border: 2px solid #b3261e; border-radius: 8px; padding: 10px 14px; margin-bottom: 12px; font-weight: 600; }
 .tag-gesperrt #kbEinzahlungBtn, .tag-gesperrt #kbAuszahlungBtn, .tag-gesperrt #anfangsbestandSpeichern,
 .tag-gesperrt #endbestandSpeichern, .tag-gesperrt #kassenschnittBtn, .tag-gesperrt #rgVerbuchen { pointer-events: none; opacity: .4; }
+
+/* ---- Freie Plätze / Gruppen-Reservierungen ---- */
+.platz-bar { display: flex; align-items: center; gap: 14px; padding: 10px 14px; margin-bottom: 12px; border-radius: 10px; background: #e6f2ea; border: 2px solid #3b7d52; }
+.platz-frei { font-size: 2.2rem; font-weight: 800; line-height: 1; font-family: var(--font-mono); }
+.platz-text { font-weight: 700; display: flex; flex-direction: column; }
+.platz-text small { font-weight: 400; opacity: .8; }
+.platz-bar.platz-knapp { background: #fff3d6; border-color: #c98a00; }
+.platz-bar.platz-voll { background: #fde7e5; border-color: #b3261e; }
+.res-gewaehlt { background: #fff3d6; border-radius: 8px; }
