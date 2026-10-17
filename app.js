@@ -33,7 +33,6 @@ const firebaseConfig = {
 // stehen lassen, um die Google-Sheets-Übertragung vorerst zu deaktivieren.
 const GOOGLE_SHEETS_WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbxCcl_HOSmDsKFRPWv6T2H2KNoYQ3N0z8EE2hI58OzYCb5ipMTTXWgxGil8RyazrWCZ/exec";
 
-
 const firebaseApp = initializeApp(firebaseConfig);
 const db = getFirestore(firebaseApp);
 const auth = getAuth(firebaseApp);
@@ -2035,21 +2034,31 @@ function fallbackPiepen() {
   beepTimer = setInterval(piep, 600);
 }
 
+let alarmWaechter = null;
 function starteAlarm() {
-  if (alarmAudio) {
-    alarmAudio.loop = true;
-    alarmAudio.currentTime = 0;
-    alarmAudio.play().catch(() => fallbackPiepen());
+  if (!alarmAudio) {
+    alarmAudio = new Audio("alarm.mp3");
     alarmAudio.onerror = fallbackPiepen;
-  } else {
-    fallbackPiepen();
   }
+  alarmAudio.muted = false;
+  alarmAudio.loop = true;
+  // Falls der Browser "loop" nicht einhält: nach dem Ende sofort neu starten
+  alarmAudio.onended = () => { if (!vollOverlay.classList.contains("hidden")) { alarmAudio.currentTime = 0; alarmAudio.play().catch(() => {}); } };
+  alarmAudio.currentTime = 0;
+  alarmAudio.play().catch(() => fallbackPiepen());
+  // Wächter: solange das Fenster offen ist, läuft der Ton – egal was passiert
+  clearInterval(alarmWaechter);
+  alarmWaechter = setInterval(() => {
+    if (vollOverlay.classList.contains("hidden")) { clearInterval(alarmWaechter); return; }
+    if (alarmAudio.paused || alarmAudio.ended) alarmAudio.play().catch(() => fallbackPiepen());
+  }, 1000);
   if (navigator.vibrate) navigator.vibrate([500, 200, 500]);
 }
 function stoppeAlarm() {
+  clearInterval(alarmWaechter); alarmWaechter = null;
+  vollOverlay.classList.add("hidden"); // zuerst, damit onended nicht neu startet
   if (alarmAudio) { alarmAudio.pause(); alarmAudio.currentTime = 0; }
   clearInterval(beepTimer); beepTimer = null;
-  vollOverlay.classList.add("hidden");
 }
 vollOk.addEventListener("click", stoppeAlarm);
 
@@ -2092,8 +2101,7 @@ async function pruefeVollbesetzt(d) {
     vollOverlay.classList.remove("hidden");
     starteAlarm();
   } else if (!voll && vollAktiv) {
-    vollAktiv = false;
-    stoppeAlarm();
+    vollAktiv = false; // Fenster und Gong bleiben, bis jemand auf OK tippt
   }
 }
 
@@ -2196,7 +2204,7 @@ function renderResPanel() {
 platzBar.addEventListener("click", () => {
   const b = fahrtDaten ? berechneFrei(fahrtDaten) : null;
   const txt = JSON.stringify({
-    appVersion: "2026-10-12-v3 (Sitzplätze ohne Doppel-Puffer)",
+    appVersion: APP_VERSION,
     fahrt: fahrtDaten ? { sitzplaetze: fahrtDaten.sitzplaetze, einzelperson: fahrtDaten.einzelperson, familien: fahrtDaten.familien, gruppen: fahrtDaten.gruppen, erwachsene: fahrtDaten.erwachsene, kinder: fahrtDaten.kinder, wagen: fahrtDaten.wagen } : null,
     sitzplatzReservePct: reservePct, neustadtReserveFuerLambrecht: neustadtReserve, lambrechtGezaehlt,
     reserviert: reserviertSumme(), standort: session.standort, berechnet: b
@@ -2209,3 +2217,13 @@ platzBar.addEventListener("click", () => {
   pre.textContent = txt;
   platzBar.after(pre);
 });
+
+
+// Sichtbare Versionsangabe unten auf der Seite (zeigt, ob wirklich die neue Datei geladen wurde)
+const APP_VERSION = "2026-10-17-v5";
+(function () {
+  const v = document.createElement("div");
+  v.textContent = "App-Version " + APP_VERSION;
+  v.style.cssText = "text-align:center;font-size:.7rem;opacity:.5;padding:8px 0 90px";
+  document.body.appendChild(v);
+})();
